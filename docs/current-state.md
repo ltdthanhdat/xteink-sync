@@ -121,6 +121,7 @@ This means:
 - current implementation status stays in `docs/current-state.md`
 - follow-up implementation work stays in `docs/next-steps.md`
 - project plans live under `docs/plans/`
+- tactical research outputs and community notes live under `docs/outputs/`
 
 ## Known Gaps Or Incomplete Areas
 
