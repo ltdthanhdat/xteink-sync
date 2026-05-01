@@ -163,17 +163,15 @@ export class SqliteStateStore {
   listBaselineEntries(profileName: string): BaselineEntry[] {
     const rows = this.db
       .query(
-        `SELECT relative_path, size, hash
+        `SELECT relative_path
          FROM sync_entries
          WHERE profile_name = ?
          ORDER BY relative_path`
       )
-      .all(profileName) as Array<{ relative_path: string; size: number; hash: string }>;
+      .all(profileName) as Array<{ relative_path: string }>;
 
     return rows.map((row) => ({
-      relativePath: row.relative_path,
-      size: row.size,
-      hash: row.hash
+      relativePath: row.relative_path
     }));
   }
 
@@ -258,7 +256,7 @@ export class SqliteStateStore {
     this.db.transaction(() => {
       deleteQuery.run(profileName);
       for (const entry of entries) {
-        insertQuery.run(profileName, entry.relativePath, entry.size, entry.hash, now);
+        insertQuery.run(profileName, entry.relativePath, 0, "", now);
       }
     })();
   }

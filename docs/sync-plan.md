@@ -21,7 +21,7 @@ Hệ thống được chia thành 4 phần:
 
 2. `sync engine`
    - so sánh `local`, `remote`, và `baseline`
-   - tạo plan với `upload`, `download`, `conflict`, `soft-delete`, `delete-candidate`
+   - tạo plan với `upload`, `download`, `conflict`, `delete`, `delete-candidate`
    - thực thi action theo thứ tự an toàn
 
 3. `state store`
@@ -36,16 +36,16 @@ Hệ thống được chia thành 4 phần:
 ## Quyết Định Quan Trọng
 
 - Runtime hiện tại ưu tiên một profile mặc định; profile management vẫn còn trong code nhưng đang tắt bằng feature flag.
-- `soft delete` không xóa vĩnh viễn; file được chuyển vào `.xteink-trash`.
-- Scanner bỏ qua `.xteink-trash` để tránh file đã xóa quay lại sync plan.
+- Delete được propagate bằng hard delete, nhưng vẫn giữ `tombstone` để replay/recovery khi run fail giữa chừng.
+- Scanner vẫn bỏ qua folder legacy `.xteink-trash` để tránh sync nhầm dữ liệu rác cũ.
 - `bidirectional` không có authoritative side mặc định; mọi quyết định delete phải đi qua `baseline`.
 - `same-size ambiguous` ở remote phải dùng `hash-on-demand`, không được mặc định là unchanged.
 
 ## Tài Liệu Liên Quan
 
-- Trạng thái code hiện tại: [current-state.md](/home/datlt/workspace/xteink-sync/docs/current-state.md)
-- Luồng sync và delete policy: [sync-flow.md](/home/datlt/workspace/xteink-sync/docs/sync-flow.md)
-- Hướng triển khai tiếp: [next-steps.md](/home/datlt/workspace/xteink-sync/docs/next-steps.md)
+- Trạng thái code hiện tại: [current-state.md](./current-state.md)
+- Luồng sync và delete policy: [sync-flow.md](./sync-flow.md)
+- Hướng triển khai tiếp: [next-steps.md](./next-steps.md)
 
 ## API Đã Xác Nhận
 
@@ -73,6 +73,6 @@ MVP được coi là đủ dùng khi:
 - nhập và validate được URL thiết bị
 - scan được cây local và remote
 - preview được sync plan an toàn
-- execute được `upload`, `download`, `conflict resolution tối thiểu`, và `soft delete`
+- execute được `upload`, `download`, `conflict resolution tối thiểu`, và `delete`
 - lưu được baseline và tombstone state đúng
 - có history cơ bản trong TUI

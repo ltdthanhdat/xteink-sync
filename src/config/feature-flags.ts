@@ -1,5 +1,6 @@
 export const featureFlags = {
-  enableProfileManagement: false
+  enableProfileManagement: false,
+  enableRemoteRootEditing: false
 } as const;
 
 export const appConfig = {

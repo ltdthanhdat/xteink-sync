@@ -35,8 +35,8 @@ Planner hiện có thể tạo các action:
 - `download`
 - `conflict`
 - `skip`
-- `local-soft-delete`
-- `remote-soft-delete`
+- `local-delete`
+- `remote-delete`
 - `delete-candidate`
 
 ## First Run Rule
@@ -69,11 +69,11 @@ Nếu `baseline.size == remote.size`:
 Nếu path có trong baseline:
 
 - local missing, remote vẫn đúng baseline
-  - tạo `remote-soft-delete`
+  - tạo `remote-delete`
   - tombstone side = `local`
 
 - remote missing, local vẫn đúng baseline
-  - tạo `local-soft-delete`
+  - tạo `local-delete`
   - tombstone side = `remote`
 
 - một bên missing nhưng bên còn lại cũng changed
@@ -82,12 +82,12 @@ Nếu path có trong baseline:
 ## Push-only Rule
 
 - local là authoritative side cho create/update/delete
-- remote drift có thể bị overwrite hoặc soft-delete tùy case
+- remote drift có thể bị overwrite hoặc delete tùy case
 
 Cases chính:
 
 - local changed, remote unchanged -> `upload`
-- local missing, remote còn baseline -> `remote-soft-delete`
+- local missing, remote còn baseline -> `remote-delete`
 - local còn baseline, remote missing -> `upload`
 
 ## Pull-only Rule
@@ -97,7 +97,7 @@ Cases chính:
 Cases chính:
 
 - remote changed, local unchanged -> `download`
-- remote missing, local còn baseline -> `local-soft-delete`
+- remote missing, local còn baseline -> `local-delete`
 - remote còn baseline, local missing -> `download`
 
 ## Tombstone Rule
@@ -124,23 +124,20 @@ Một path được coi là hội tụ khi:
 Ví dụ:
 
 - cả hai cùng có file giống nhau
-- hoặc cả hai cùng không còn file ở path gốc sau soft-delete
+- hoặc cả hai cùng không còn file ở path gốc sau delete
 
-## Soft Delete Rule
-
-Không hard delete ngay.
+## Delete Rule
 
 Implementation hiện tại:
 
-- local soft delete:
-  - move file vào `.xteink-trash/...`
-  - đổi tên thành `*.deleted-<timestamp>`
+- local delete:
+  - xóa file tại path gốc bằng hard delete
 
-- remote soft delete:
-  - move file vào `.xteink-trash/...`
-  - rename thành `*.deleted-<timestamp>`
+- remote delete:
+  - gọi `POST /delete` cho path gốc trên device
 
-Scanner local và remote đều phải bỏ qua `.xteink-trash`.
+- tombstone vẫn được giữ để replay delete chưa propagate xong
+- scanner vẫn bỏ qua folder legacy `.xteink-trash` và `xteink-trash` nếu còn tồn tại
 
 ## Execute Rule
 
@@ -148,8 +145,8 @@ Executor chạy lần lượt từng action:
 
 - `download`
 - `upload`
-- `local-soft-delete`
-- `remote-soft-delete`
+- `local-delete`
+- `remote-delete`
 - `conflict`
 
 Không execute:

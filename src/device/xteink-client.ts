@@ -3,7 +3,7 @@ import path from "node:path";
 import { URL } from "node:url";
 import type { TreeEntry } from "../types.js";
 
-const TRASH_DIR_NAME = ".xteink-trash";
+const LEGACY_REMOTE_TRASH_DIR_NAME = "xteink-trash";
 
 type RemoteItem = {
   name: string;
@@ -29,7 +29,7 @@ const joinRemotePath = (base: string, name: string): string => {
 };
 
 const isTrashRelativePath = (relativePath: string): boolean =>
-  relativePath === TRASH_DIR_NAME || relativePath.startsWith(`${TRASH_DIR_NAME}/`);
+  relativePath === LEGACY_REMOTE_TRASH_DIR_NAME || relativePath.startsWith(`${LEGACY_REMOTE_TRASH_DIR_NAME}/`);
 
 export class XteinkClient {
   readonly baseUrl: string;
@@ -77,7 +77,7 @@ export class XteinkClient {
   async mkdir(parentPath: string, name: string): Promise<void> {
     const form = new FormData();
     form.append("name", name);
-    form.append("path", parentPath);
+    form.append("path", parentPath === "/" ? "" : parentPath);
 
     const response = await fetch(`${this.baseUrl}/mkdir`, {
       method: "POST",
@@ -85,7 +85,8 @@ export class XteinkClient {
     });
 
     if (!response.ok) {
-      throw new Error(`mkdir failed for ${parentPath}/${name}: ${response.status}`);
+      const targetPath = parentPath === "/" ? `/${name}` : `${parentPath}/${name}`;
+      throw new Error(`mkdir failed for ${targetPath}: ${response.status}`);
     }
   }
 
@@ -154,15 +155,23 @@ export class XteinkClient {
     }
   }
 
-  async softDeleteFile(remoteRoot: string, relativePath: string, deletedName: string): Promise<void> {
-    const parentDir = path.posix.dirname(relativePath);
-    const trashParent = parentDir === "." ? TRASH_DIR_NAME : `${TRASH_DIR_NAME}/${parentDir}`;
-    const trashDir = remoteRoot === "/" ? `/${trashParent}` : `${remoteRoot}/${trashParent}`;
-    const originalRemotePath = remoteRoot === "/" ? `/${relativePath}` : `${remoteRoot}/${relativePath}`;
-    const movedRemotePath = `${trashDir}/${path.posix.basename(relativePath)}`;
+  async deletePath(remotePath: string): Promise<void> {
+    const normalizedPath = remotePath.startsWith("/") ? remotePath : `/${remotePath}`;
+    const body = new URLSearchParams({
+      paths: JSON.stringify([normalizedPath])
+    });
 
-    await this.movePath(originalRemotePath, trashDir);
-    await this.renamePath(movedRemotePath, deletedName);
+    const response = await fetch(`${this.baseUrl}/delete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`delete failed for ${remotePath}: ${response.status}`);
+    }
   }
 
   async downloadFile(remotePath: string, localPath: string): Promise<void> {

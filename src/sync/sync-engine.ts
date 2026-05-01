@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import crypto from "node:crypto";
 import path from "node:path";
 import { XteinkClient } from "../device/xteink-client.js";
 import type {
@@ -8,6 +7,7 @@ import type {
   PlannedAction,
   PlanSummary,
   ProbeResult,
+  RunProgress,
   ScanSummary,
   SyncProfile,
   SyncRunSummary,
@@ -15,22 +15,46 @@ import type {
   TreeEntry
 } from "../types.js";
 
-const TRASH_DIR_NAME = ".xteink-trash";
+const LEGACY_TRASH_DIR_NAME = ".xteink-trash";
+const LOCAL_IGNORE_FILE = ".xteinkignore";
+const DEFAULT_IGNORED_RELATIVE_PATHS = [".git", LEGACY_TRASH_DIR_NAME, LOCAL_IGNORE_FILE];
 
 const toPosixPath = (filePath: string): string => filePath.split(path.sep).join("/");
 
-const isTrashRelativePath = (relativePath: string): boolean =>
-  relativePath === TRASH_DIR_NAME || relativePath.startsWith(`${TRASH_DIR_NAME}/`);
+const normalizeIgnorePattern = (pattern: string): string => pattern.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+
+const loadLocalIgnorePatterns = (rootPath: string): string[] => {
+  const ignoreFilePath = path.join(rootPath, LOCAL_IGNORE_FILE);
+  if (!fs.existsSync(ignoreFilePath)) {
+    return DEFAULT_IGNORED_RELATIVE_PATHS;
+  }
+
+  const configuredPatterns = fs
+    .readFileSync(ignoreFilePath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .map(normalizeIgnorePattern)
+    .filter(Boolean);
+
+  return [...new Set([...DEFAULT_IGNORED_RELATIVE_PATHS, ...configuredPatterns])];
+};
+
+const matchesIgnoredRelativePath = (relativePath: string, ignoredPatterns: string[]): boolean => {
+  const normalizedPath = normalizeIgnorePattern(relativePath);
+  return ignoredPatterns.some((pattern) => normalizedPath === pattern || normalizedPath.startsWith(`${pattern}/`));
+};
 
 const scanLocalTree = (rootPath: string): TreeEntry[] => {
   const entries: TreeEntry[] = [];
+  const ignoredPatterns = loadLocalIgnorePatterns(rootPath);
 
   const walk = (currentPath: string): void => {
     const dirEntries = fs.readdirSync(currentPath, { withFileTypes: true });
     for (const entry of dirEntries) {
       const fullPath = path.join(currentPath, entry.name);
       const relativePath = toPosixPath(path.relative(rootPath, fullPath));
-      if (isTrashRelativePath(relativePath)) {
+      if (matchesIgnoredRelativePath(relativePath, ignoredPatterns)) {
         continue;
       }
 
@@ -95,18 +119,18 @@ const appendFileSuffix = (filePath: string, suffix: string): string => {
 };
 
 const timestampFragment = (): string => new Date().toISOString().replaceAll(":", "-");
-
-const sha256 = (bytes: Uint8Array): string => crypto.createHash("sha256").update(bytes).digest("hex");
-
-const hashLocalFile = (localPath: string): string => sha256(fs.readFileSync(localPath));
+const sleep = (milliseconds: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const throwIfCancelled = (shouldCancel?: () => boolean): void => {
+  if (shouldCancel?.()) {
+    throw new Error("SYNC_CANCELLED");
+  }
+};
 
 const toBaselineEntries = (entries: TreeEntry[]): BaselineEntry[] =>
   entries
     .filter((entry) => !entry.isDirectory)
     .map((entry) => ({
-      relativePath: entry.relativePath,
-      size: entry.size,
-      hash: hashLocalFile(entry.path)
+      relativePath: entry.relativePath
     }))
     .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
@@ -115,16 +139,11 @@ const buildPlanSummary = (actions: PlannedAction[]): PlanSummary => ({
   download: actions.filter((item) => item.kind === "download").length,
   conflict: actions.filter((item) => item.kind === "conflict").length,
   skip: actions.filter((item) => item.kind === "skip").length,
-  localSoftDelete: actions.filter((item) => item.kind === "local-soft-delete").length,
-  remoteSoftDelete: actions.filter((item) => item.kind === "remote-soft-delete").length,
+  localDelete: actions.filter((item) => item.kind === "local-delete").length,
+  remoteDelete: actions.filter((item) => item.kind === "remote-delete").length,
   deleteCandidate: actions.filter((item) => item.kind === "delete-candidate").length,
   sample: actions.slice(0, 12)
 });
-
-const localTrashPath = (localRoot: string, relativePath: string): string =>
-  path.join(localRoot, TRASH_DIR_NAME, appendFileSuffix(relativePath, `deleted-${timestampFragment()}`));
-
-const localDeleteName = (relativePath: string): string => appendFileSuffix(path.posix.basename(relativePath), `deleted-${timestampFragment()}`);
 
 type PlanContext = {
   local?: TreeEntry;
@@ -146,7 +165,7 @@ const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction =
     if (tombstone?.deletedOn === "local") {
       return {
         path: pathKey,
-        kind: "remote-soft-delete",
+        kind: "remote-delete",
         reason: "pending tombstone from local delete",
         remoteSize: remote.size,
         tombstoneSide: "local"
@@ -156,7 +175,7 @@ const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction =
     if (mode === "push-only") {
       return {
         path: pathKey,
-        kind: "remote-soft-delete",
+        kind: "remote-delete",
         reason: "local is authoritative for delete in push-only mode",
         remoteSize: remote.size
       };
@@ -182,7 +201,7 @@ const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction =
 
     return {
       path: pathKey,
-      kind: "remote-soft-delete",
+      kind: "remote-delete",
       reason: "propagate local delete to remote from trusted baseline",
       remoteSize: remote.size,
       tombstoneSide: "local"
@@ -193,7 +212,7 @@ const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction =
     if (tombstone?.deletedOn === "remote") {
       return {
         path: pathKey,
-        kind: "local-soft-delete",
+        kind: "local-delete",
         reason: "pending tombstone from remote delete",
         localSize: local.size,
         tombstoneSide: "remote"
@@ -203,7 +222,7 @@ const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction =
     if (mode === "pull-only") {
       return {
         path: pathKey,
-        kind: "local-soft-delete",
+        kind: "local-delete",
         reason: "remote is authoritative for delete in pull-only mode",
         localSize: local.size
       };
@@ -229,7 +248,7 @@ const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction =
 
     return {
       path: pathKey,
-      kind: "local-soft-delete",
+      kind: "local-delete",
       reason: "propagate remote delete to local from trusted baseline",
       localSize: local.size,
       tombstoneSide: "remote"
@@ -251,8 +270,8 @@ export const planActions = async (
   baselineEntries: BaselineEntry[],
   pendingTombstones: TombstoneEntry[],
   mode: SyncProfile["mode"],
-  client: Pick<XteinkClient, "downloadBytes">,
-  remoteRoot: string
+  _client: Pick<XteinkClient, "downloadBytes">,
+  _remoteRoot: string
 ): Promise<PlannedAction[]> => {
   const localFiles = new Map(localEntries.filter((entry) => !entry.isDirectory).map((entry) => [entry.relativePath, entry]));
   const remoteFiles = new Map(remoteEntries.filter((entry) => !entry.isDirectory).map((entry) => [entry.relativePath, entry]));
@@ -260,49 +279,26 @@ export const planActions = async (
   const tombstones = new Map(pendingTombstones.map((entry) => [entry.relativePath, entry]));
   const allPaths = new Set<string>([...localFiles.keys(), ...remoteFiles.keys(), ...baselineFiles.keys(), ...tombstones.keys()]);
   const planned: PlannedAction[] = [];
-  const localHashCache = new Map<string, string>();
-  const remoteHashCache = new Map<string, string>();
-
-  const getLocalHash = (entry: TreeEntry): string => {
-    const cached = localHashCache.get(entry.path);
-    if (cached) {
-      return cached;
-    }
-
-    const hash = hashLocalFile(entry.path);
-    localHashCache.set(entry.path, hash);
-    return hash;
-  };
-
-  const getRemoteHash = async (entry: TreeEntry): Promise<string> => {
-    const cached = remoteHashCache.get(entry.path);
-    if (cached) {
-      return cached;
-    }
-
-    const bytes = await client.downloadBytes(toRemotePath(remoteRoot, entry.relativePath));
-    const hash = sha256(bytes);
-    remoteHashCache.set(entry.path, hash);
-    return hash;
-  };
 
   for (const pathKey of [...allPaths].sort()) {
     const local = localFiles.get(pathKey);
     const remote = remoteFiles.get(pathKey);
     const baseline = baselineFiles.get(pathKey);
     const tombstone = tombstones.get(pathKey);
-    let localChanged = local ? !baseline || baseline.size !== local.size : baseline !== undefined;
-    let remoteChanged = remote ? !baseline || baseline.size !== remote.size : baseline !== undefined;
-
-    if (baseline && local && baseline.size === local.size) {
-      localChanged = getLocalHash(local) !== baseline.hash;
-    }
-
-    if (baseline && remote && baseline.size === remote.size) {
-      remoteChanged = (await getRemoteHash(remote)) !== baseline.hash;
-    }
+    const localChanged = Boolean(local && !baseline);
+    const remoteChanged = Boolean(remote && !baseline);
 
     if (!baseline) {
+      if (!local && !remote && tombstone) {
+        planned.push({
+          path: pathKey,
+          kind: "skip",
+          reason: "already converged on tombstoned delete",
+          tombstoneSide: tombstone.deletedOn
+        });
+        continue;
+      }
+
       if (local && !remote) {
         planned.push({
           path: pathKey,
@@ -327,43 +323,10 @@ export const planActions = async (
         continue;
       }
 
-      if (local.size === remote.size) {
-        planned.push({
-          path: pathKey,
-          kind: "skip",
-          reason: "same path and same size on first run",
-          localSize: local.size,
-          remoteSize: remote.size
-        });
-        continue;
-      }
-
-      if (mode === "pull-only") {
-        planned.push({
-          path: pathKey,
-          kind: "download",
-          reason: "size differs on first run, prefer remote in pull-only mode",
-          localSize: local.size,
-          remoteSize: remote.size
-        });
-        continue;
-      }
-
-      if (mode === "push-only") {
-        planned.push({
-          path: pathKey,
-          kind: "upload",
-          reason: "size differs on first run, prefer local in push-only mode",
-          localSize: local.size,
-          remoteSize: remote.size
-        });
-        continue;
-      }
-
       planned.push({
         path: pathKey,
-        kind: "conflict",
-        reason: "same path exists on both sides with different size and no trusted baseline yet",
+        kind: "skip",
+        reason: "same path exists on both sides on first run",
         localSize: local.size,
         remoteSize: remote.size
       });
@@ -399,7 +362,7 @@ export const planActions = async (
       planned.push({
         path: pathKey,
         kind: "skip",
-        reason: "unchanged on both sides since baseline",
+        reason: "same path still exists on both sides since baseline",
         localSize: local.size,
         remoteSize: remote.size
       });
@@ -463,13 +426,43 @@ export const planActions = async (
 };
 
 export class SyncEngine {
-  private async collectSummary(profile: SyncProfile, baselineEntries: BaselineEntry[], pendingTombstones: TombstoneEntry[]): Promise<SyncRunSummary> {
+  private async probeWithRetry(
+    client: XteinkClient,
+    onProgress?: (progress: RunProgress) => void,
+    shouldCancel?: () => boolean
+  ): Promise<ProbeResult> {
+    for (;;) {
+      throwIfCancelled(shouldCancel);
+      onProgress?.({ phase: "probing-device" });
+
+      try {
+        return await client.probe();
+      } catch {
+        throwIfCancelled(shouldCancel);
+        await sleep(1000);
+      }
+    }
+  }
+
+  private async collectSummary(
+    profile: SyncProfile,
+    baselineEntries: BaselineEntry[],
+    pendingTombstones: TombstoneEntry[],
+    onProgress?: (progress: RunProgress) => void,
+    shouldCancel?: () => boolean
+  ): Promise<SyncRunSummary> {
     const client = new XteinkClient(profile.baseUrl);
-    const probe: ProbeResult = await client.probe();
+    const probe = await this.probeWithRetry(client, onProgress, shouldCancel);
+    throwIfCancelled(shouldCancel);
+    onProgress?.({ phase: "scanning-local" });
     const localEntries = scanLocalTree(profile.localRoot);
+    throwIfCancelled(shouldCancel);
+    onProgress?.({ phase: "scanning-remote" });
     const remoteEntries = await client.scanTree(profile.remoteRoot);
+    throwIfCancelled(shouldCancel);
     const local = summarizeScan(localEntries);
     const remote = summarizeScan(remoteEntries);
+    onProgress?.({ phase: "building-plan" });
     const actions = await planActions(localEntries, remoteEntries, baselineEntries, pendingTombstones, profile.mode, client, profile.remoteRoot);
     const currentEntries = toBaselineEntries(localEntries);
 
@@ -494,12 +487,23 @@ export class SyncEngine {
     };
   }
 
-  async run(profile: SyncProfile, baselineEntries: BaselineEntry[], pendingTombstones: TombstoneEntry[] = []): Promise<SyncRunSummary> {
+  async run(
+    profile: SyncProfile,
+    baselineEntries: BaselineEntry[],
+    pendingTombstones: TombstoneEntry[] = [],
+    onProgress?: (progress: RunProgress) => void,
+    shouldCancel?: () => boolean
+  ): Promise<SyncRunSummary> {
+    throwIfCancelled(shouldCancel);
+    onProgress?.({ phase: "validating-local-root" });
     if (!fs.existsSync(profile.localRoot)) {
       throw new Error(`Local root does not exist: ${profile.localRoot}`);
     }
 
-    return this.collectSummary(profile, baselineEntries, pendingTombstones);
+    const summary = await this.collectSummary(profile, baselineEntries, pendingTombstones, onProgress, shouldCancel);
+    throwIfCancelled(shouldCancel);
+    onProgress?.({ phase: "completed" });
+    return summary;
   }
 
   async execute(
@@ -538,12 +542,10 @@ export class SyncEngine {
           await client.downloadFile(remotePath, localPath);
         } else if (action.kind === "upload") {
           await client.uploadFile(localPath, toRemoteDir(profile.remoteRoot, action.path));
-        } else if (action.kind === "local-soft-delete") {
-          const trashPath = localTrashPath(profile.localRoot, action.path);
-          fs.mkdirSync(path.dirname(trashPath), { recursive: true });
-          fs.renameSync(localPath, trashPath);
-        } else if (action.kind === "remote-soft-delete") {
-          await client.softDeleteFile(profile.remoteRoot, action.path, localDeleteName(action.path));
+        } else if (action.kind === "local-delete") {
+          fs.rmSync(localPath, { force: true });
+        } else if (action.kind === "remote-delete") {
+          await client.deletePath(remotePath);
         } else {
           const remoteBytes = await client.downloadBytes(remotePath);
           const conflictLocalPath = appendFileSuffix(localPath, `conflict-remote-${timestampFragment()}`);

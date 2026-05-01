@@ -37,7 +37,7 @@ Tài liệu này mô tả trạng thái implementation hiện tại của codeba
 - `mkdir`
 - `rename`
 - `move`
-- `soft delete` remote bằng cách move vào `.xteink-trash` rồi rename thành file `deleted-*`
+- `delete` remote qua `POST /delete`
 
 ### Sync Engine
 
@@ -52,8 +52,8 @@ Tài liệu này mô tả trạng thái implementation hiện tại của codeba
   - `download`
   - `conflict`
   - `skip`
-  - `local-soft-delete`
-  - `remote-soft-delete`
+  - `local-delete`
+  - `remote-delete`
   - `delete-candidate`
 - conflict resolution tối thiểu:
   - giữ local ở path gốc
@@ -118,4 +118,4 @@ Hiện đang có:
 - chưa có byte-level progress
 - chưa có review riêng cho `delete-candidate`
 - chưa có test integration cho executor
-- chưa có cleanup policy cho `.xteink-trash`
+- chưa có cleanup cho folder trash legacy nếu trước đây đã tạo ra

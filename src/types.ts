@@ -26,8 +26,6 @@ export type TreeEntry = {
 
 export type BaselineEntry = {
   relativePath: string;
-  size: number;
-  hash: string;
 };
 
 export type TombstoneSide = "local" | "remote";
@@ -55,8 +53,8 @@ export type PlannedActionKind =
   | "download"
   | "conflict"
   | "skip"
-  | "local-soft-delete"
-  | "remote-soft-delete"
+  | "local-delete"
+  | "remote-delete"
   | "delete-candidate";
 
 export type PlannedAction = {
@@ -73,8 +71,8 @@ export type PlanSummary = {
   download: number;
   conflict: number;
   skip: number;
-  localSoftDelete: number;
-  remoteSoftDelete: number;
+  localDelete: number;
+  remoteDelete: number;
   deleteCandidate: number;
   sample: PlannedAction[];
 };
@@ -102,6 +100,18 @@ export type SyncRunRecord = {
 };
 
 export type ExecutionProgressPhase = "planning" | "running" | "completed" | "failed";
+
+export type RunProgressPhase =
+  | "validating-local-root"
+  | "probing-device"
+  | "scanning-local"
+  | "scanning-remote"
+  | "building-plan"
+  | "completed";
+
+export type RunProgress = {
+  phase: RunProgressPhase;
+};
 
 export type ExecutionProgress = {
   phase: ExecutionProgressPhase;

@@ -1,12 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import crypto from "node:crypto";
 import { afterEach, describe, expect, it } from "bun:test";
 import { planActions } from "./sync-engine.js";
 import type { BaselineEntry, TombstoneEntry, TreeEntry } from "../types.js";
-
-const sha256 = (value: string): string => crypto.createHash("sha256").update(value).digest("hex");
 
 const tempRoots: string[] = [];
 
@@ -36,9 +33,7 @@ const makeRemoteFile = (relativePath: string, size: number): TreeEntry => ({
 });
 
 const makeBaseline = (relativePath: string, content: string): BaselineEntry => ({
-  relativePath,
-  size: Buffer.byteLength(content),
-  hash: sha256(content)
+  relativePath
 });
 
 afterEach(() => {
@@ -65,22 +60,22 @@ describe("planActions delete policy", () => {
 
   it("propagates a trusted local delete to remote in bidirectional mode", async () => {
     const baseline = [makeBaseline("book.epub", "baseline")];
-    const actions = await planActions([], [makeRemoteFile("book.epub", baseline[0].size)], baseline, [], "bidirectional", {
+    const actions = await planActions([], [makeRemoteFile("book.epub", Buffer.byteLength("baseline"))], baseline, [], "bidirectional", {
       downloadBytes: async () => new Uint8Array(Buffer.from("baseline"))
     }, "/");
 
     expect(actions).toEqual([
       {
         path: "book.epub",
-        kind: "remote-soft-delete",
+        kind: "remote-delete",
         reason: "propagate local delete to remote from trusted baseline",
-        remoteSize: baseline[0].size,
+        remoteSize: Buffer.byteLength("baseline"),
         tombstoneSide: "local"
       }
     ]);
   });
 
-  it("treats delete-vs-modify as conflict in bidirectional mode", async () => {
+  it("propagates delete in bidirectional mode when only the path is tracked", async () => {
     const baseline = [makeBaseline("book.epub", "old-text")];
     const actions = await planActions([], [makeRemoteFile("book.epub", 99)], baseline, [], "bidirectional", {
       downloadBytes: async () => new Uint8Array(Buffer.from("new-text"))
@@ -89,9 +84,10 @@ describe("planActions delete policy", () => {
     expect(actions).toEqual([
       {
         path: "book.epub",
-        kind: "conflict",
-        reason: "delete vs modify conflict: local missing but remote changed since baseline",
-        remoteSize: 99
+        kind: "remote-delete",
+        reason: "propagate local delete to remote from trusted baseline",
+        remoteSize: 99,
+        tombstoneSide: "local"
       }
     ]);
   });
@@ -109,7 +105,7 @@ describe("planActions delete policy", () => {
         path: "book.epub",
         kind: "upload",
         reason: "restore remote file from local baseline in push-only mode",
-        localSize: baseline[0].size
+        localSize: Buffer.byteLength("baseline")
       }
     ]);
   });
@@ -127,11 +123,26 @@ describe("planActions delete policy", () => {
     ];
 
     const baseline = [makeBaseline("book.epub", "baseline")];
-    const actions = await planActions([], [makeRemoteFile("book.epub", baseline[0].size)], baseline, tombstones, "bidirectional", {
+    const actions = await planActions([], [makeRemoteFile("book.epub", Buffer.byteLength("baseline"))], baseline, tombstones, "bidirectional", {
       downloadBytes: async () => new Uint8Array(Buffer.from("baseline"))
     }, "/");
 
-    expect(actions[0]?.kind).toBe("remote-soft-delete");
+    expect(actions[0]?.kind).toBe("remote-delete");
     expect(actions[0]?.reason).toBe("pending tombstone from local delete");
+  });
+
+  it("treats same-path files as unchanged once they exist in baseline", async () => {
+    const root = makeTempRoot();
+    const localEntry = makeLocalFile(root, "book.epub", "local-text");
+    const baseline = [makeBaseline("book.epub", "other-text")];
+
+    const actions = await planActions([localEntry], [makeRemoteFile("book.epub", 999)], baseline, [], "bidirectional", {
+      downloadBytes: async () => {
+        throw new Error("planner should not fetch remote file contents");
+      }
+    }, "/");
+
+    expect(actions[0]?.kind).toBe("skip");
+    expect(actions[0]?.reason).toBe("same path still exists on both sides since baseline");
   });
 });

@@ -8,7 +8,7 @@ Tài liệu này gom các hướng triển khai tiếp theo theo mức ưu tiên
 
 Mục tiêu:
 
-- retry `download`, `upload`, `remote-soft-delete` khi lỗi mạng ngắn
+- retry `download`, `upload`, `remote-delete` khi lỗi mạng ngắn
 - không retry mù cho lỗi logic như `404`, `400`
 
 Gợi ý triển khai:
@@ -88,15 +88,13 @@ Hướng đơn giản:
 
 Chưa cần auto execute rename ngay; có thể preview trước.
 
-### 2. Trash cleanup policy
+### 2. Legacy trash cleanup
 
-Hiện `.xteink-trash` sẽ tăng dần.
+Nếu môi trường cũ đã từng tạo `.xteink-trash` hoặc `xteink-trash`, cần chốt:
 
-Cần chốt:
-
-- giữ bao lâu
-- cleanup thủ công hay tự động
-- cleanup local và remote cùng policy hay khác nhau
+- có dọn một lần khi migrate hay không
+- dọn thủ công hay thêm command cleanup riêng
+- có cần cảnh báo rõ trong UI/docs hay không
 
 ### 3. Executor integration tests
 
@@ -104,7 +102,7 @@ Hiện mới có planner tests.
 
 Nên thêm:
 
-- test local soft delete
+- test local delete
 - test tombstone replay
 - test baseline chỉ update khi an toàn
 
@@ -137,7 +135,7 @@ Chỉ cần nếu:
 2. thêm retry ngắn cho network actions
 3. thêm executor integration tests
 4. thiết kế rename/move detection
-5. chốt trash cleanup policy
+5. chốt legacy trash cleanup
 
 ## Done Criteria Cho Vòng Tiếp Theo
 
