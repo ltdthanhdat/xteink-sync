@@ -82,9 +82,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ASSET_NAME }}
+          make_latest: true
 
       - name: Upload installer script to GitHub Release
         if: startsWith(github.ref, 'refs/tags/') && matrix.target == 'linux-x64'
         uses: softprops/action-gh-release@v2
         with:
           files: scripts/install-release.sh
+          make_latest: true
