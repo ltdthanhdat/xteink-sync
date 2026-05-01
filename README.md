@@ -13,10 +13,6 @@ File sync for local machines and Xteink devices running CrossPoint firmware, wit
 ![Release](https://img.shields.io/github/v/release/ltdthanhdat/xteink-sync?label=release)
 
 [Download](#download) • [Quick Start](#quick-start) • [Workflow](#typical-workflow)
-
-<!-- Insert hero screenshot here. Recommended path: docs/images/hero.png -->
-_Hero screenshot placeholder_
-
 [Latest release](https://github.com/ltdthanhdat/xteink-sync/releases/latest) • [All releases](https://github.com/ltdthanhdat/xteink-sync/releases)
 
 ## Why Xteink Sync
@@ -120,35 +116,29 @@ rm -f ~/.local/bin/xteink-sync
 Choose the device URL, local root, and sync mode.
 
 <!-- Insert screenshot here. Recommended path: docs/images/step-1-settings.png -->
-_Screenshot placeholder_
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/2f8240b6-0b4e-454f-92db-8af6f0bcba1e" />
+
 
 ### 2. Start a scan
 
 The app validates the local root, connects to the device, scans both sides, and builds a sync plan.
 
 <!-- Insert screenshot here. Recommended path: docs/images/step-2-scan.png -->
-_Screenshot placeholder_
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/4227fe37-59fa-46f7-ba74-ef3ee0562100" />
 
 ### 3. Review the plan
 
 Inspect uploads, downloads, deletes, conflicts, and skipped items before execution.
 
 <!-- Insert screenshot here. Recommended path: docs/images/step-3-preview.png -->
-_Screenshot placeholder_
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/ddffadff-bd2c-4233-a8ee-d8822f9411ed" />
 
 ### 4. Execute the sync
 
 Run the planned actions and monitor execution progress in the TUI.
 
 <!-- Insert screenshot here. Recommended path: docs/images/step-4-execute.png -->
-_Screenshot placeholder_
-
-### 5. Check sync history
-
-Review previous runs and inspect summaries afterward.
-
-<!-- Insert screenshot here. Recommended path: docs/images/step-5-history.png -->
-_Screenshot placeholder_
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/f5c016ab-ebb5-4ade-998f-5ef9f495936f" />
 
 ## Sync Modes
 
