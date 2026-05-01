@@ -43,9 +43,9 @@ The system is divided into 4 parts:
 
 ## Related Documents
 
-- Current code status: [current-state.md](./current-state.md)
-- Sync flow and delete policy: [sync-flow.md](./sync-flow.md)
-- Follow-up implementation directions: [next-steps.md](./next-steps.md)
+- Current code status: [current-state.md](../current-state.md)
+- Sync flow and delete policy: [sync-flow.md](../sync-flow.md)
+- Follow-up implementation directions: [next-steps.md](../next-steps.md)
 
 ## Confirmed API
 

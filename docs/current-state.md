@@ -116,6 +116,12 @@ This means:
 - GitHub Actions release workflow builds precompiled release assets on version tags
 - Releases also publish a Unix install script for quick `curl`/`wget` installation
 
+## Documentation Layout
+
+- current implementation status stays in `docs/current-state.md`
+- follow-up implementation work stays in `docs/next-steps.md`
+- project plans live under `docs/plans/`
+
 ## Known Gaps Or Incomplete Areas
 
 - no real rename detection yet
