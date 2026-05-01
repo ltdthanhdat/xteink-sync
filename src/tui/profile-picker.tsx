@@ -56,7 +56,7 @@ export const ProfilePicker = ({
 
   return (
     <Box flexDirection="column">
-      <Text color="cyan">Chọn profile</Text>
+      <Text color="cyan">Select profile</Text>
       {profiles.map((profile, index) => (
         <Text key={profile.name} color={index === selectedIndex ? "green" : undefined}>
           {index === selectedIndex ? "› " : "  "}
@@ -68,7 +68,7 @@ export const ProfilePicker = ({
         {selectedIndex === profiles.length ? "› " : "  "}
         new profile
       </Text>
-      <Text color="gray">Dùng ↑/↓ hoặc j/k, Enter để chọn, r để edit, x để delete, h để xem recent runs.</Text>
+      <Text color="gray">Use ↑/↓ or j/k, Enter to select, r to edit, x to delete, h to open recent runs.</Text>
     </Box>
   );
 };

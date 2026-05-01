@@ -46,14 +46,14 @@ export const ModeSelect = ({ mode, onChange, onSubmit, onBack }: ModeSelectProps
 
   return (
     <Box flexDirection="column">
-      <Text color="cyan">Chọn mode sync</Text>
+      <Text color="cyan">Select sync mode</Text>
       {modes.map((item) => (
       <Text key={item} color={item === mode ? "green" : undefined}>
           {item === mode ? "› " : "  "}
           {item}
         </Text>
       ))}
-      <Text color="gray">Dùng ↑/↓ hoặc j/k, Enter để chạy, Esc hoặc b để quay lại.</Text>
+      <Text color="gray">Use ↑/↓ or j/k, Enter to continue, Esc or b to go back.</Text>
     </Box>
   );
 };

@@ -39,7 +39,7 @@ export const HistoryView = ({ runs, selectedIndex, onChange, onSelect, onBack }:
   return (
     <Box flexDirection="column">
       <Text color="cyan">Recent runs</Text>
-      {runs.length === 0 ? <Text color="gray">Chưa có lần sync nào được ghi.</Text> : null}
+      {runs.length === 0 ? <Text color="gray">No sync runs have been recorded yet.</Text> : null}
       {runs.map((run, index) => (
         <Box key={run.id} flexDirection="column" marginBottom={1}>
           <Text color={index === selectedIndex ? "cyan" : run.status === "success" ? "green" : "red"}>
@@ -56,7 +56,7 @@ export const HistoryView = ({ runs, selectedIndex, onChange, onSelect, onBack }:
           </Text>
         </Box>
       ))}
-      <Text color="gray">Dùng ↑/↓ hoặc j/k để chọn, Enter để xem detail, b hoặc q để quay lại.</Text>
+      <Text color="gray">Use ↑/↓ or j/k to choose, Enter to open details, b or q to go back.</Text>
     </Box>
   );
 };

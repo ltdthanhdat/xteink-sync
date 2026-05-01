@@ -67,7 +67,7 @@ export const App = () => {
       setRecentRuns(stateStore.listRecentRuns());
       setSelectedProfileIndex(0);
       setPendingDeleteProfile(null);
-      setInfoMessage(`Đã xóa profile ${pendingDeleteProfile.name}. History runs được giữ lại.`);
+      setInfoMessage(`Deleted profile ${pendingDeleteProfile.name}. Run history was kept.`);
       setStep(updatedProfiles.length > 0 ? "profile-picker" : "profile-name");
       return;
     }
@@ -202,8 +202,8 @@ export const App = () => {
         setResult(summary);
         setInfoMessage(
           summary.plan.conflict === 0 && summary.plan.deleteCandidate === 0
-            ? `Đã thực thi ${summary.plan.upload} upload, ${summary.plan.download} download và ${summary.plan.localSoftDelete + summary.plan.remoteSoftDelete} soft delete. Baseline đã được cập nhật.`
-            : `Đã thực thi ${summary.plan.upload} upload, ${summary.plan.download} download và ${summary.plan.localSoftDelete + summary.plan.remoteSoftDelete} soft delete, nhưng còn ${summary.plan.conflict} conflict / ${summary.plan.deleteCandidate} delete-candidate nên baseline chưa được cập nhật tự động.`
+            ? `Executed ${summary.plan.upload} uploads, ${summary.plan.download} downloads, and ${summary.plan.localSoftDelete + summary.plan.remoteSoftDelete} soft deletes. Baseline was updated.`
+            : `Executed ${summary.plan.upload} uploads, ${summary.plan.download} downloads, and ${summary.plan.localSoftDelete + summary.plan.remoteSoftDelete} soft deletes, but ${summary.plan.conflict} conflicts / ${summary.plan.deleteCandidate} delete candidates remain, so baseline was not updated automatically.`
         );
         setShowConflictDetails(summary.plan.conflict > 0 || summary.plan.deleteCandidate > 0);
         setStep("done");
@@ -272,7 +272,7 @@ export const App = () => {
   if (step === "profile-delete-confirm" && pendingDeleteProfile) {
     return (
       <Box flexDirection="column">
-        <Text color="red">Xóa profile?</Text>
+        <Text color="red">Delete profile?</Text>
         <Text>{pendingDeleteProfile.name}</Text>
         <Text color="gray">{pendingDeleteProfile.baseUrl}</Text>
         <Text color="gray">
@@ -282,8 +282,8 @@ export const App = () => {
           Remote: {pendingDeleteProfile.remoteRoot}
         </Text>
         <Newline />
-        <Text color="gray">Sẽ xóa profile và baseline entries của profile này. Recent runs vẫn được giữ lại.</Text>
-        <Text color="gray">Nhấn y để xác nhận, b hoặc q để hủy.</Text>
+        <Text color="gray">This will delete the profile and its baseline entries. Recent runs will be kept.</Text>
+        <Text color="gray">Press y to confirm, b or q to cancel.</Text>
       </Box>
     );
   }
@@ -333,7 +333,7 @@ export const App = () => {
         <Newline />
         <Text color={showRunAllActions ? "cyan" : "red"}>{showRunAllActions ? "All actions:" : "Conflicts:"}</Text>
         {detailActions.length === 0 ? (
-          <Text color="gray">{showRunAllActions ? "Không có action nào trong run này." : "Không có conflict trong run này."}</Text>
+          <Text color="gray">{showRunAllActions ? "No actions in this run." : "No conflicts in this run."}</Text>
         ) : null}
         {detailActions.slice(0, 20).map((item) => (
           <Text key={`detail:${selectedRun.id}:${item.kind}:${item.path}`}>
@@ -346,18 +346,18 @@ export const App = () => {
             </Text>
           </Text>
         ))}
-        {detailActions.length > 20 ? <Text color="gray">... và còn {detailActions.length - 20} action khác</Text> : null}
+        {detailActions.length > 20 ? <Text color="gray">... and {detailActions.length - 20} more actions</Text> : null}
         <Newline />
-        <Text color="gray">Nhấn a để bật/tắt all actions. Nhấn b hoặc q để quay lại history.</Text>
+        <Text color="gray">Press a to toggle all actions. Press b or q to go back to history.</Text>
       </Box>
     );
   }
 
   if (step === "profile-name") {
     return (
-      <PromptInput
-        label="Tên profile"
-        description={isEditingProfile ? "Đang chỉnh profile hiện có trong SQLite." : "Dùng để lưu cấu hình sync hiện tại vào SQLite."}
+        <PromptInput
+        label="Profile name"
+        description={isEditingProfile ? "Editing the existing profile stored in SQLite." : "Used to store the current sync configuration in SQLite."}
         value={profileName}
         onChange={setProfileName}
         onSubmit={() => setStep("base-url")}
@@ -371,8 +371,8 @@ export const App = () => {
   if (step === "base-url") {
     return (
       <PromptInput
-        label="Base URL thiết bị"
-        description="Ví dụ: http://192.168.1.34"
+        label="Device base URL"
+        description="Example: http://192.168.1.34"
         value={baseUrl}
         onChange={setBaseUrl}
         onSubmit={() => setStep("local-root")}
@@ -385,7 +385,7 @@ export const App = () => {
     return (
       <PromptInput
         label="Local root"
-        description="Thư mục local sẽ được scan trong lượt chạy đầu tiên."
+        description="The local folder that will be scanned for this run."
         value={localRoot}
         onChange={setLocalRoot}
         onSubmit={() => setStep("remote-root")}
@@ -398,7 +398,7 @@ export const App = () => {
     return (
       <PromptInput
         label="Remote root"
-        description="Dùng / nếu muốn scan từ root của thiết bị."
+        description="Use / to scan from the device root."
         value={remoteRoot}
         onChange={setRemoteRoot}
         onSubmit={() => setStep("mode")}
@@ -414,7 +414,7 @@ export const App = () => {
   if (step === "running" || step === "executing") {
     return (
       <Box flexDirection="column">
-        <Text color="cyan">{step === "running" ? "Đang probe và scan thiết bị..." : "Đang thực thi sync plan..."}</Text>
+        <Text color="cyan">{step === "running" ? "Probing and scanning device..." : "Executing sync plan..."}</Text>
         <Text>Profile: {profileName}</Text>
         <Text>Base URL: {baseUrl}</Text>
         <Text>Local root: {localRoot}</Text>
@@ -446,10 +446,10 @@ export const App = () => {
   if (step === "error") {
     return (
       <Box flexDirection="column">
-        <Text color="red">Lượt chạy thất bại</Text>
+        <Text color="red">Run failed</Text>
         <Text>{error}</Text>
         <Newline />
-        <Text color="gray">Nhấn b để về cấu hình sync, hoặc q để thoát.</Text>
+        <Text color="gray">Press b to return to sync settings, or q to quit.</Text>
       </Box>
     );
   }
@@ -459,7 +459,7 @@ export const App = () => {
 
   return (
     <Box flexDirection="column">
-      <Text color="green">Preview sync plan đã sẵn sàng</Text>
+      <Text color="green">Sync plan preview is ready</Text>
       <Text>Profile: {result?.profileName}</Text>
       <Text>Base URL: {result?.baseUrl}</Text>
       <Text>Mode: {result?.mode}</Text>
@@ -482,7 +482,7 @@ export const App = () => {
         <>
           <Text color="red">Conflict details:</Text>
           <Text color="gray">
-            Rule hiện tại: giữ local ở path gốc, lưu bản remote thành `*.conflict-remote-&lt;timestamp&gt;` rồi upload cả hai bản lên remote.
+            Current rule: keep the local file at the original path, save the remote copy as `*.conflict-remote-&lt;timestamp&gt;`, then upload both copies to remote.
           </Text>
           {conflicts.slice(0, 10).map((item) => (
             <Text key={`conflict:${item.path}`}>
@@ -495,7 +495,7 @@ export const App = () => {
               </Text>
             </Text>
           ))}
-          {conflicts.length > 10 ? <Text color="gray">... và còn {conflicts.length - 10} conflict khác</Text> : null}
+          {conflicts.length > 10 ? <Text color="gray">... and {conflicts.length - 10} more conflicts</Text> : null}
           {deleteCandidates.length > 0 ? <Text color="yellow">Delete candidates: {deleteCandidates.length}</Text> : null}
         </>
       ) : (
@@ -514,7 +514,7 @@ export const App = () => {
       )}
       <Newline />
       {infoMessage ? <Text color="green">{infoMessage}</Text> : null}
-      <Text color="gray">Nhấn c để bật/tắt conflict details. Nhấn e để thực thi. Nhấn b để về cấu hình sync. Nhấn q để thoát.</Text>
+      <Text color="gray">Press c to toggle conflict details. Press e to execute. Press b to return to sync settings. Press q to quit.</Text>
     </Box>
   );
 };

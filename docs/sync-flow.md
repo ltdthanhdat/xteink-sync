@@ -1,4 +1,4 @@
-# Sync Flow
+# Luồng Sync
 
 Tài liệu này chốt luồng planner/executor hiện tại và delete policy.
 
@@ -54,7 +54,7 @@ Nếu chưa có `baseline`:
 Nếu `baseline.size == remote.size`:
 
 - remote chưa chắc unchanged
-- engine phải `downloadBytes()` và hash-on-demand trước khi bỏ qua
+- engine phải `downloadBytes()` và `hash-on-demand` trước khi bỏ qua
 
 ## Bidirectional Rule
 

@@ -46,7 +46,7 @@ export const PromptInput = ({ label, description, value, onChange, onSubmit, onB
         <Text color="green">{value || "_"}</Text>
       </Text>
       <Text color="gray">
-        Enter để tiếp tục, Backspace để xóa, Ctrl+U để clear{onBack ? ", Esc để quay lại." : "."}
+        Press Enter to continue, Backspace to delete, Ctrl+U to clear{onBack ? ", Esc to go back." : "."}
       </Text>
     </Box>
   );

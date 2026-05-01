@@ -1,4 +1,4 @@
-# Current State
+# Trạng Thái Hiện Tại
 
 Tài liệu này mô tả trạng thái implementation hiện tại của codebase.
 
@@ -12,7 +12,7 @@ Tài liệu này mô tả trạng thái implementation hiện tại của codeba
 
 ## Runtime Flow Hiện Tại
 
-Ứng dụng đang chạy theo flow:
+Ứng dụng hiện chạy theo flow:
 
 1. nhập `base URL`
 2. nhập `local root`
@@ -24,7 +24,7 @@ Tài liệu này mô tả trạng thái implementation hiện tại của codeba
 5. scan local + remote
 6. đọc `baseline` + `pending tombstones`
 7. preview plan
-8. execute nếu người dùng xác nhận
+8. execute khi người dùng xác nhận
 
 ## Những Gì Đã Có
 
@@ -101,7 +101,7 @@ Hiện đang có:
 
 - `enableProfileManagement = false`
 
-Nghĩa là:
+Điều đó có nghĩa là:
 
 - code profile picker vẫn còn
 - runtime mặc định đang dùng một profile cố định
@@ -114,7 +114,7 @@ Nghĩa là:
 ## Điểm Chưa Ổn Hoặc Chưa Làm
 
 - chưa có rename detection thật sự
-- chưa có retry/resume khi mạng lỗi
+- chưa có retry/resume khi lỗi mạng
 - chưa có byte-level progress
 - chưa có review riêng cho `delete-candidate`
 - chưa có test integration cho executor

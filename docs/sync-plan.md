@@ -1,4 +1,4 @@
-# Xteink Sync Plan
+# Kế Hoạch Sync Xteink
 
 Tài liệu này là điểm vào chính để hiểu dự án và dẫn sang các file chi tiết hơn.
 
@@ -9,7 +9,7 @@ Xây một ứng dụng TUI chạy cục bộ để đồng bộ thư mục gi�
 - máy local
 - thiết bị Xteink X4 qua HTTP API của file manager
 
-Ứng dụng không dùng browser automation cho runtime chính. Phần đồng bộ đi qua HTTP endpoints thật của thiết bị.
+Ứng dụng không dùng browser automation cho runtime chính. Luồng sync đi qua các HTTP endpoint thật của thiết bị.
 
 ## Kiến Trúc Chốt Hiện Tại
 
@@ -20,15 +20,15 @@ Hệ thống được chia thành 4 phần:
    - scan tree, upload, download, mkdir, move, rename
 
 2. `sync engine`
-   - so sánh `local`, `remote`, `baseline`
-   - tạo plan `upload`, `download`, `conflict`, `soft-delete`, `delete-candidate`
+   - so sánh `local`, `remote`, và `baseline`
+   - tạo plan với `upload`, `download`, `conflict`, `soft-delete`, `delete-candidate`
    - thực thi action theo thứ tự an toàn
 
 3. `state store`
-   - lưu `profiles`, `baseline entries`, `tombstones`, `runs` trong `SQLite`
+   - lưu `profiles`, `baseline entries`, `tombstones`, và `runs` trong `SQLite`
 
 4. `TUI app`
-   - nhập `base URL`, `local root`, `remote root`, `mode`
+   - nhập `base URL`, `local root`, `remote root`, và `mode`
    - preview plan
    - execute sync
    - xem history
@@ -36,10 +36,10 @@ Hệ thống được chia thành 4 phần:
 ## Quyết Định Quan Trọng
 
 - Runtime hiện tại ưu tiên một profile mặc định; profile management vẫn còn trong code nhưng đang tắt bằng feature flag.
-- `soft delete` không xóa thẳng; file được chuyển vào `.xteink-trash`.
-- scanner bỏ qua `.xteink-trash` để tránh file đã xóa quay lại plan.
+- `soft delete` không xóa vĩnh viễn; file được chuyển vào `.xteink-trash`.
+- Scanner bỏ qua `.xteink-trash` để tránh file đã xóa quay lại sync plan.
 - `bidirectional` không có authoritative side mặc định; mọi quyết định delete phải đi qua `baseline`.
-- `same-size ambiguous` ở remote phải `hash-on-demand`, không được mặc định là unchanged.
+- `same-size ambiguous` ở remote phải dùng `hash-on-demand`, không được mặc định là unchanged.
 
 ## Tài Liệu Liên Quan
 
@@ -63,16 +63,16 @@ Hệ thống được chia thành 4 phần:
 - remote không có `mtime`
 - remote không có checksum metadata
 - rename/move detection chưa làm
-- retry/resume cho network lỗi chưa làm
+- retry/resume cho lỗi mạng chưa làm
 - progress hiện mới ở mức action-level, chưa có byte-level
 
 ## Mục Tiêu MVP
 
 MVP được coi là đủ dùng khi:
 
-- nhập URL thiết bị và validate được
-- scan được local và remote
+- nhập và validate được URL thiết bị
+- scan được cây local và remote
 - preview được sync plan an toàn
-- execute được `upload`, `download`, `conflict resolution tối thiểu`, `soft delete`
-- lưu được baseline và tombstone đúng
+- execute được `upload`, `download`, `conflict resolution tối thiểu`, và `soft delete`
+- lưu được baseline và tombstone state đúng
 - có history cơ bản trong TUI
