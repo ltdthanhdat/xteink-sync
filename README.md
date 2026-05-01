@@ -62,7 +62,7 @@ wget -qO- https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/in
 Install a specific version:
 
 ```bash
-curl -fsSL https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | VERSION=v0.1.0 sh
+curl -fsSL https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | VERSION=v0.1.4 sh
 ```
 
 Run:
