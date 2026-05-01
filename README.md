@@ -4,6 +4,14 @@ File sync for local machines and Xteink devices running CrossPoint firmware, wit
 
 > CrossPoint firmware only.
 
+![Bun](https://img.shields.io/badge/Bun-1.3+-000000?logo=bun&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-19-20232A?logo=react)
+![Ink](https://img.shields.io/badge/Ink-TUI-111111)
+![SQLite](https://img.shields.io/badge/SQLite-State-003B57?logo=sqlite&logoColor=white)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+![Release](https://img.shields.io/badge/Release-Automated-2EA44F?logo=github&logoColor=white)
+
 Installation • Quick Start • Screenshots • Documentation
 
 <!-- Insert hero screenshot here. Recommended path: docs/images/hero.png -->
@@ -29,37 +37,20 @@ That keeps sync decisions visible instead of hiding them behind a blind push/pul
 - Store sync history for later review
 - Persist sync state to make future runs safer
 
-## Built With
-
-- Bun
-- TypeScript
-- Ink
-- React
-- SQLite
-
 ## Installation
 
 ### Prerequisites
 
-- Bun installed and available in `PATH`
 - A device running CrossPoint firmware
 - `~/.local/bin` available in `PATH`
 
-### Install from Source
+### Install from Releases
 
 ```bash
-git clone <your-repo-url>
-cd xteink-sync
-bun install
-make install
-```
-
-This builds the project and installs a local launcher at `~/.local/bin/xteink-sync`.
-
-If Bun is installed but not available in `PATH`, use:
-
-```bash
-BUN_BIN=$HOME/.bun/bin/bun make install
+wget <release-asset-url>
+tar -xzf xteink-sync-linux-x64.tar.gz
+mkdir -p ~/.local/bin
+mv xteink-sync ~/.local/bin/
 ```
 
 Then run:
@@ -68,10 +59,19 @@ Then run:
 xteink-sync
 ```
 
+Prebuilt assets are published automatically from GitHub Actions on each release tag.
+
+### Available Release Assets
+
+- `xteink-sync-linux-x64.tar.gz`
+- `xteink-sync-macos-x64.tar.gz`
+- `xteink-sync-macos-arm64.tar.gz`
+- `xteink-sync-windows-x64.zip`
+
 ### Uninstall
 
 ```bash
-make uninstall
+rm -f ~/.local/bin/xteink-sync
 ```
 
 ## Quick Start
@@ -152,7 +152,17 @@ _Screenshot placeholder_
 
 - This project is intended for CrossPoint firmware devices only.
 - Sync state is stored in `.xteink-sync/state.db` under the current working directory.
-- The local install command creates a launcher in `~/.local/bin`, but the app still runs from your cloned checkout.
+- Release binaries are built automatically by GitHub Actions.
+
+## Development
+
+If you are working on the project locally:
+
+```bash
+bun install
+bun test src
+bun run build
+```
 
 ## Documentation
 

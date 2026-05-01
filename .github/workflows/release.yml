@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} / ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            archive: tar.gz
+            executable: xteink-sync
+          - os: macos-13
+            target: macos-x64
+            archive: tar.gz
+            executable: xteink-sync
+          - os: macos-14
+            target: macos-arm64
+            archive: tar.gz
+            executable: xteink-sync
+          - os: windows-latest
+            target: windows-x64
+            archive: zip
+            executable: xteink-sync.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun test src
+
+      - name: Build executable
+        shell: bash
+        run: |
+          mkdir -p release
+          bun build --compile --external react-devtools-core --outfile "release/${{ matrix.executable }}" ./src/index.tsx
+
+      - name: Package archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          archive="xteink-sync-${{ matrix.target }}.${{ matrix.archive }}"
+          tar -C release -czf "$archive" "${{ matrix.executable }}"
+          echo "ASSET_NAME=$archive" >> "$GITHUB_ENV"
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "xteink-sync-${{ matrix.target }}.${{ matrix.archive }}"
+          Compress-Archive -Path "release/${{ matrix.executable }}" -DestinationPath $archive
+          "ASSET_NAME=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload release asset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: ${{ env.ASSET_NAME }}
+
+      - name: Upload asset to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET_NAME }}

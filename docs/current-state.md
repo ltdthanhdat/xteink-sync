@@ -110,6 +110,8 @@ This means:
 
 - `bun test src`
 - `bun run build`
+- GitHub Actions CI runs install, test, and build on `master` and pull requests
+- GitHub Actions release workflow builds precompiled release assets on version tags
 
 ## Known Gaps Or Incomplete Areas
 
