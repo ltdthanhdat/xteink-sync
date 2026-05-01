@@ -9,13 +9,15 @@ File sync for local machines and Xteink devices running CrossPoint firmware, wit
 ![React](https://img.shields.io/badge/React-19-20232A?logo=react)
 ![Ink](https://img.shields.io/badge/Ink-TUI-111111)
 ![SQLite](https://img.shields.io/badge/SQLite-State-003B57?logo=sqlite&logoColor=white)
-![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
-![Release](https://img.shields.io/badge/Release-Automated-2EA44F?logo=github&logoColor=white)
+![CI](https://img.shields.io/github/actions/workflow/status/ltdthanhdat/xteink-sync/ci.yml?branch=master&label=CI)
+![Release](https://img.shields.io/github/v/release/ltdthanhdat/xteink-sync?label=release)
 
-Installation • Quick Start • Screenshots • Documentation
+Download • Quick Start • Workflow
 
 <!-- Insert hero screenshot here. Recommended path: docs/images/hero.png -->
 _Hero screenshot placeholder_
+
+[Latest release](https://github.com/ltdthanhdat/xteink-sync/releases/latest) • [All releases](https://github.com/ltdthanhdat/xteink-sync/releases)
 
 ## Why Xteink Sync
 
@@ -37,7 +39,7 @@ That keeps sync decisions visible instead of hiding them behind a blind push/pul
 - Store sync history for later review
 - Persist sync state to make future runs safer
 
-## Installation
+## Download
 
 ### Prerequisites
 
@@ -45,44 +47,53 @@ That keeps sync decisions visible instead of hiding them behind a blind push/pul
 - `~/.local/bin` available in `PATH`
 - `curl` or `wget`
 
-### Install the Latest Release
+### Linux and macOS
 
 ```bash
 curl -fsSL https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | sh
 ```
 
-Or with `wget`:
+Or:
 
 ```bash
 wget -qO- https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | sh
 ```
 
-To install a specific version:
+Install a specific version:
 
 ```bash
 curl -fsSL https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | VERSION=v0.1.0 sh
 ```
 
-Then run:
+Run:
 
 ```bash
 xteink-sync
 ```
 
-Each GitHub release includes:
+Release page:
+
+```text
+https://github.com/ltdthanhdat/xteink-sync/releases/latest
+```
+
+### Windows
+
+Download `xteink-sync-windows-x64.zip` from the latest release page, extract it, and run `xteink-sync.exe`.
+
+### Release Assets
+
+Each release includes:
 
 - prebuilt binaries for supported platforms
 - a ready-to-run install script for Unix-like systems
-
-Prebuilt assets are published automatically from GitHub Actions on each version tag.
-
-### Available Release Assets
-
 - `install-release.sh`
 - `xteink-sync-linux-x64.tar.gz`
 - `xteink-sync-macos-x64.tar.gz`
 - `xteink-sync-macos-arm64.tar.gz`
 - `xteink-sync-windows-x64.zip`
+
+Prebuilt assets are published automatically from GitHub Actions on each version tag.
 
 ### Manual Install
 
@@ -102,28 +113,6 @@ rm -f ~/.local/bin/xteink-sync
 4. Review the generated sync plan
 5. Execute the sync if the plan looks correct
 6. Revisit the result from sync history
-
-## Screenshots
-
-### Settings
-
-<!-- Insert screenshot here. Recommended path: docs/images/settings.png -->
-_Screenshot placeholder_
-
-### Plan Preview
-
-<!-- Insert screenshot here. Recommended path: docs/images/plan-preview.png -->
-_Screenshot placeholder_
-
-### Execution Progress
-
-<!-- Insert screenshot here. Recommended path: docs/images/execution-progress.png -->
-_Screenshot placeholder_
-
-### Sync History
-
-<!-- Insert screenshot here. Recommended path: docs/images/sync-history.png -->
-_Screenshot placeholder_
 
 ## Typical Workflow
 
@@ -172,22 +161,4 @@ _Screenshot placeholder_
 
 - This project is intended for CrossPoint firmware devices only.
 - Sync state is stored in `.xteink-sync/state.db` under the current working directory.
-- Release binaries are built automatically by GitHub Actions.
 - The release installer currently supports Linux and macOS. Windows uses the `.zip` asset.
-
-## Development
-
-If you are working on the project locally:
-
-```bash
-bun install
-bun test src
-bun run build
-```
-
-## Documentation
-
-- Current implementation status: [docs/current-state.md](docs/current-state.md)
-- Follow-up work and gaps: [docs/next-steps.md](docs/next-steps.md)
-- Sync behavior details: [docs/sync-flow.md](docs/sync-flow.md)
-- Project plan: [docs/sync-plan.md](docs/sync-plan.md)
