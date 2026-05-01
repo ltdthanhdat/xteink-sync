@@ -21,10 +21,6 @@ jobs:
             target: linux-x64
             archive: tar.gz
             executable: xteink-sync
-          - os: macos-13
-            target: macos-x64
-            archive: tar.gz
-            executable: xteink-sync
           - os: macos-14
             target: macos-arm64
             archive: tar.gz

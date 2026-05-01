@@ -89,7 +89,6 @@ Each release includes:
 - a ready-to-run install script for Unix-like systems
 - `install-release.sh`
 - `xteink-sync-linux-x64.tar.gz`
-- `xteink-sync-macos-x64.tar.gz`
 - `xteink-sync-macos-arm64.tar.gz`
 - `xteink-sync-windows-x64.zip`
 
