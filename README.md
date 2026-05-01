@@ -43,14 +43,24 @@ That keeps sync decisions visible instead of hiding them behind a blind push/pul
 
 - A device running CrossPoint firmware
 - `~/.local/bin` available in `PATH`
+- `curl` or `wget`
 
-### Install from Releases
+### Install the Latest Release
 
 ```bash
-wget <release-asset-url>
-tar -xzf xteink-sync-linux-x64.tar.gz
-mkdir -p ~/.local/bin
-mv xteink-sync ~/.local/bin/
+curl -fsSL https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | sh
+```
+
+Or with `wget`:
+
+```bash
+wget -qO- https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | sh
+```
+
+To install a specific version:
+
+```bash
+curl -fsSL https://github.com/ltdthanhdat/xteink-sync/releases/latest/download/install-release.sh | VERSION=v0.1.0 sh
 ```
 
 Then run:
@@ -59,14 +69,24 @@ Then run:
 xteink-sync
 ```
 
-Prebuilt assets are published automatically from GitHub Actions on each release tag.
+Each GitHub release includes:
+
+- prebuilt binaries for supported platforms
+- a ready-to-run install script for Unix-like systems
+
+Prebuilt assets are published automatically from GitHub Actions on each version tag.
 
 ### Available Release Assets
 
+- `install-release.sh`
 - `xteink-sync-linux-x64.tar.gz`
 - `xteink-sync-macos-x64.tar.gz`
 - `xteink-sync-macos-arm64.tar.gz`
 - `xteink-sync-windows-x64.zip`
+
+### Manual Install
+
+If you prefer to install manually, download the asset that matches your platform from the release page, extract it, and move `xteink-sync` into `~/.local/bin`.
 
 ### Uninstall
 
@@ -153,6 +173,7 @@ _Screenshot placeholder_
 - This project is intended for CrossPoint firmware devices only.
 - Sync state is stored in `.xteink-sync/state.db` under the current working directory.
 - Release binaries are built automatically by GitHub Actions.
+- The release installer currently supports Linux and macOS. Windows uses the `.zip` asset.
 
 ## Development
 

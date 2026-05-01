@@ -112,6 +112,7 @@ This means:
 - `bun run build`
 - GitHub Actions CI runs install, test, and build on `master` and pull requests
 - GitHub Actions release workflow builds precompiled release assets on version tags
+- Releases also publish a Unix install script for quick `curl`/`wget` installation
 
 ## Known Gaps Or Incomplete Areas
 
