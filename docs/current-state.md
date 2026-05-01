@@ -21,7 +21,7 @@ The application currently runs with this flow:
    - `bidirectional`
    - `pull-only`
    - `push-only`
-5. scan local and remote
+5. scan your computer (local) and Xteink X4 (remote)
 6. read `baseline` and `pending tombstones`
 7. preview the plan
 8. execute after user confirmation

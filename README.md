@@ -1,6 +1,6 @@
 # Xteink Sync
 
-File sync for local machines and Xteink devices running CrossPoint firmware, with sync plan preview and sync history.
+File sync between your computer and Xteink devices running CrossPoint firmware, with sync plan preview and sync history.
 
 > CrossPoint firmware only.
 
@@ -16,23 +16,23 @@ File sync for local machines and Xteink devices running CrossPoint firmware, wit
 
 ## Why Xteink Sync
 
-Xteink Sync is built for a simple workflow:
+Xteink Sync is built to make syncing between your computer (local) and Xteink X4 (remote) visible and reviewable:
 
-1. scan local and remote
-2. preview the sync plan
-3. execute only after review
-4. inspect the run later in history
+1. sync files between your computer (local) and Xteink X4 (remote)
+2. scan both sides before syncing
+3. preview the sync plan
+4. execute only after review
+5. inspect the run later in history
 
-That keeps sync decisions visible instead of hiding them behind a blind push/pull flow.
+That keeps every sync decision clear instead of hiding it behind a blind push/pull flow.
 
 ## Features
 
+- Sync files between your computer (local) and Xteink X4 (remote)
 - Preview the sync plan before execution
-- Sync files between a local folder and a CrossPoint device
-- Support `bidirectional`, `pull-only`, and `push-only` modes
+- Support `bidirectional`, `pull-only`, and `push-only` sync
 - Surface conflicts separately from safe transfers
-- Store sync history for later review
-- Persist sync state to make future runs safer
+- Keep sync history and persisted state for safer future runs
 
 ## Download
 
