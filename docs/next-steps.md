@@ -1,147 +1,147 @@
-# Hướng Triển Khai Tiếp
+# Next Steps
 
-Tài liệu này gom các hướng triển khai tiếp theo theo mức ưu tiên.
+This document groups likely follow-up work by priority.
 
-## Ưu Tiên 1: Siết Executor Và Recovery
+## Priority 1: Tighten Executor And Recovery
 
-### 1. Retry ngắn cho network action
+### 1. Short retry for network actions
 
-Mục tiêu:
+Goals:
 
-- retry `download`, `upload`, `remote-delete` khi lỗi mạng ngắn
-- không retry mù cho lỗi logic như `404`, `400`
+- retry `download`, `upload`, and `remote-delete` on short-lived network failures
+- do not blindly retry logic errors such as `404` or `400`
 
-Gợi ý triển khai:
+Suggested implementation:
 
-- thêm wrapper retry ở `device adapter`
-- retry 2-3 lần với backoff ngắn
-- chỉ áp dụng cho lỗi network hoặc `5xx`
+- add a retry wrapper in the `device adapter`
+- retry 2-3 times with short backoff
+- apply only to network errors or `5xx`
 
 ### 2. Run failure recovery
 
-Mục tiêu:
+Goals:
 
-- nếu run fail giữa chừng, lần sau resume sạch hơn
-- không resurrect file sai vì pending tombstone chưa resolve
+- make the next run recover more cleanly after a mid-run failure
+- avoid resurrecting the wrong files because pending tombstones were not resolved
 
-Gợi ý:
+Suggestions:
 
-- giữ tombstone `pending` nếu delete chưa xong
-- cân nhắc lưu execution log ngắn theo action trong `sync_runs`
+- keep tombstones `pending` if delete did not finish
+- consider storing a short per-action execution log in `sync_runs`
 
 ### 3. Byte-level progress
 
-Hiện tại progress mới ở mức action.
+Progress is currently only action-level.
 
-Hướng tiếp:
+Next direction:
 
-- hiện size file đang xử lý
-- hiện byte progress cho download/upload lớn nếu adapter hỗ trợ stream
+- show the size of the file being processed
+- show byte progress for large downloads/uploads if the adapter supports streaming
 
-## Ưu Tiên 2: Làm Rõ Review Và UX
+## Priority 2: Improve Review And UX Clarity
 
-### 1. Review riêng cho `delete-candidate`
+### 1. Dedicated review for `delete-candidate`
 
-Hiện tại `delete-candidate` chỉ hiện trong summary/action list.
+Right now, `delete-candidate` only appears in the summary/action list.
 
-Nên thêm:
+Should add:
 
-- màn hoặc toggle riêng cho delete candidates
-- giải thích rõ vì sao chưa auto delete
-- gợi ý user chuyển mode hoặc resolve thủ công
+- a dedicated screen or toggle for delete candidates
+- a clear explanation of why auto-delete did not happen
+- guidance for switching mode or resolving manually
 
-### 2. Giữ baseline chỉ auto-update
+### 2. Keep baseline as auto-update only
 
-Rule runtime nên giữ như hiện tại:
+The runtime rule should stay as it is:
 
-- không cho seed baseline thủ công từ màn preview
-- baseline chỉ auto update sau execute an toàn
-- nếu còn `conflict` hoặc `delete-candidate` thì không update baseline tự động
+- do not allow manual baseline seeding from the preview screen
+- only auto-update baseline after a safe execution
+- if `conflict` or `delete-candidate` remains, do not update baseline automatically
 
-### 3. Tách progress view và preview view
+### 3. Separate progress view and preview view
 
-Hiện `executing` còn khá thô.
+The current `executing` view is still fairly rough.
 
-Nên thêm:
+Should add:
 
-- counter theo loại action
-- log ngắn 5 action gần nhất
-- trạng thái cuối rõ hơn khi fail
+- counters by action type
+- a short log of the last 5 actions
+- a clearer final state on failure
 
-## Ưu Tiên 3: Nâng Chất Lõi Sync
+## Priority 3: Improve The Sync Core
 
 ### 1. Rename / move detection
 
-Đây là gap lớn nhất của sync engine hiện tại.
+This is the biggest gap in the current sync engine.
 
-Vấn đề:
+Problem:
 
-- rename dễ bị hiểu thành delete + create
-- move cũng vậy
+- a rename can easily be interpreted as delete + create
+- a move has the same issue
 
-Hướng đơn giản:
+Simple direction:
 
-- detect candidate rename khi:
-  - cùng hash
-  - path cũ mất
-  - path mới xuất hiện
+- detect candidate renames when:
+  - the hash matches
+  - the old path disappeared
+  - the new path appeared
 
-Chưa cần auto execute rename ngay; có thể preview trước.
+No need to auto-execute rename immediately; preview-first is acceptable.
 
 ### 2. Legacy trash cleanup
 
-Nếu môi trường cũ đã từng tạo `.xteink-trash` hoặc `xteink-trash`, cần chốt:
+If older environments previously created `.xteink-trash` or `xteink-trash`, decide:
 
-- có dọn một lần khi migrate hay không
-- dọn thủ công hay thêm command cleanup riêng
-- có cần cảnh báo rõ trong UI/docs hay không
+- whether to clean it up once during migration
+- whether cleanup is manual or gets a dedicated cleanup command
+- whether the UI/docs should warn about it more explicitly
 
 ### 3. Executor integration tests
 
-Hiện mới có planner tests.
+Right now there are only planner tests.
 
-Nên thêm:
+Should add:
 
-- test local delete
-- test tombstone replay
-- test baseline chỉ update khi an toàn
+- local delete tests
+- tombstone replay tests
+- tests that baseline only updates when the result is safe
 
-## Ưu Tiên 4: Mở Rộng Sản Phẩm
+## Priority 4: Expand The Product
 
-### 1. Bật lại profile management
+### 1. Re-enable profile management
 
-Khi runtime một profile đã ổn hơn:
+Once the single-profile runtime path is more stable:
 
-- bật lại feature flag
-- giữ single-profile path làm default UX
+- turn the feature flag back on
+- keep the single-profile path as the default UX
 
 ### 2. Watch mode / polling
 
-Sau khi sync thủ công đủ chắc:
+After manual sync becomes solid enough:
 
-- local watch bằng `chokidar`
-- remote poll theo chu kỳ
+- local watch via `chokidar`
+- remote polling on an interval
 
 ### 3. WebSocket upload path
 
-Chỉ cần nếu:
+Only needed if:
 
-- HTTP upload chậm
-- hoặc firmware yêu cầu WS path ổn định hơn
+- HTTP upload is too slow
+- or firmware requires a more stable WS upload path
 
-## Thứ Tự Làm Đề Xuất
+## Recommended Execution Order
 
-1. thêm review riêng cho `delete-candidate`
-2. thêm retry ngắn cho network actions
-3. thêm executor integration tests
-4. thiết kế rename/move detection
-5. chốt legacy trash cleanup
+1. add dedicated review for `delete-candidate`
+2. add short retry for network actions
+3. add executor integration tests
+4. design rename/move detection
+5. decide the legacy trash cleanup policy
 
-## Done Criteria Cho Vòng Tiếp Theo
+## Done Criteria For The Next Iteration
 
-Vòng triển khai tiếp theo nên được coi là xong khi:
+The next implementation round should be considered done when:
 
-- delete flow có review rõ hơn
-- run fail giữa chừng đỡ mong manh hơn
-- có thêm test cho executor
-- tài liệu vẫn khớp với code sau khi đổi
+- the delete flow has clearer review UX
+- mid-run failures are less fragile
+- executor coverage has improved
+- documentation still matches the code after the changes

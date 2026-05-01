@@ -1,53 +1,53 @@
-# Kế Hoạch Sync Xteink
+# Xteink Sync Plan
 
-Tài liệu này là điểm vào chính để hiểu dự án và dẫn sang các file chi tiết hơn.
+This document is the main entry point for understanding the project and linking to more detailed files.
 
-## Mục Tiêu
+## Goal
 
-Xây một ứng dụng TUI chạy cục bộ để đồng bộ thư mục giữa:
+Build a local TUI application that syncs folders between:
 
-- máy local
-- thiết bị Xteink X4 qua HTTP API của file manager
+- a local machine
+- an Xteink X4 device through the file manager HTTP API
 
-Ứng dụng không dùng browser automation cho runtime chính. Luồng sync đi qua các HTTP endpoint thật của thiết bị.
+The application does not use browser automation for the main runtime flow. Sync runs through the device's real HTTP endpoints.
 
-## Kiến Trúc Chốt Hiện Tại
+## Current Architecture
 
-Hệ thống được chia thành 4 phần:
+The system is divided into 4 parts:
 
 1. `device adapter`
-   - bọc HTTP API của thiết bị
-   - scan tree, upload, download, mkdir, move, rename
+   - wraps the device HTTP API
+   - scans the tree, uploads, downloads, creates directories, moves, and renames
 
 2. `sync engine`
-   - so sánh `local`, `remote`, và `baseline`
-   - tạo plan với `upload`, `download`, `conflict`, `delete`, `delete-candidate`
-   - thực thi action theo thứ tự an toàn
+   - compares `local`, `remote`, and `baseline`
+   - creates a plan with `upload`, `download`, `conflict`, `delete`, and `delete-candidate`
+   - executes actions in a safe order
 
 3. `state store`
-   - lưu `profiles`, `baseline entries`, `tombstones`, và `runs` trong `SQLite`
+   - stores `profiles`, `baseline entries`, `tombstones`, and `runs` in `SQLite`
 
 4. `TUI app`
-   - nhập `base URL`, `local root`, `remote root`, và `mode`
-   - preview plan
-   - execute sync
-   - xem history
+   - captures `base URL`, `local root`, `remote root`, and `mode`
+   - previews the plan
+   - executes sync
+   - shows history
 
-## Quyết Định Quan Trọng
+## Important Decisions
 
-- Runtime hiện tại ưu tiên một profile mặc định; profile management vẫn còn trong code nhưng đang tắt bằng feature flag.
-- Delete được propagate bằng hard delete, nhưng vẫn giữ `tombstone` để replay/recovery khi run fail giữa chừng.
-- Scanner vẫn bỏ qua folder legacy `.xteink-trash` để tránh sync nhầm dữ liệu rác cũ.
-- `bidirectional` không có authoritative side mặc định; mọi quyết định delete phải đi qua `baseline`.
-- `same-size ambiguous` ở remote phải dùng `hash-on-demand`, không được mặc định là unchanged.
+- Runtime currently favors a default single-profile flow; profile management still exists in code but is disabled by feature flag.
+- Deletes are propagated with hard delete, while `tombstone` records are still kept for replay/recovery after mid-run failures.
+- The scanner still ignores legacy `.xteink-trash` folders to avoid syncing old trash data by accident.
+- `bidirectional` mode has no default authoritative side; every delete decision must go through `baseline`.
+- Same-size ambiguous remote cases must use `hash-on-demand` and must not be assumed unchanged.
 
-## Tài Liệu Liên Quan
+## Related Documents
 
-- Trạng thái code hiện tại: [current-state.md](./current-state.md)
-- Luồng sync và delete policy: [sync-flow.md](./sync-flow.md)
-- Hướng triển khai tiếp: [next-steps.md](./next-steps.md)
+- Current code status: [current-state.md](./current-state.md)
+- Sync flow and delete policy: [sync-flow.md](./sync-flow.md)
+- Follow-up implementation directions: [next-steps.md](./next-steps.md)
 
-## API Đã Xác Nhận
+## Confirmed API
 
 - `GET /api/files?path=<path>`
 - `GET /download?path=<path>`
@@ -56,23 +56,23 @@ Hệ thống được chia thành 4 phần:
 - `POST /rename`
 - `POST /move`
 - `POST /delete`
-- `WS ws://<host>:81/` cho upload của UI, nhưng chưa dùng trong MVP
+- `WS ws://<host>:81/` for the UI upload path, not yet used in the MVP
 
-## Giới Hạn Chưa Giải
+## Unresolved Limitations
 
-- remote không có `mtime`
-- remote không có checksum metadata
-- rename/move detection chưa làm
-- retry/resume cho lỗi mạng chưa làm
-- progress hiện mới ở mức action-level, chưa có byte-level
+- remote has no `mtime`
+- remote has no checksum metadata
+- rename/move detection is not implemented yet
+- retry/resume for network errors is not implemented yet
+- progress is only action-level for now, not byte-level
 
-## Mục Tiêu MVP
+## MVP Goal
 
-MVP được coi là đủ dùng khi:
+The MVP should be considered good enough when it can:
 
-- nhập và validate được URL thiết bị
-- scan được cây local và remote
-- preview được sync plan an toàn
-- execute được `upload`, `download`, `conflict resolution tối thiểu`, và `delete`
-- lưu được baseline và tombstone state đúng
-- có history cơ bản trong TUI
+- input and validate the device URL
+- scan local and remote trees
+- preview a safe sync plan
+- execute `upload`, `download`, minimal conflict resolution, and `delete`
+- store baseline and tombstone state correctly
+- provide basic TUI history

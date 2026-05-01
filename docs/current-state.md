@@ -1,6 +1,6 @@
-# Trạng Thái Hiện Tại
+# Current State
 
-Tài liệu này mô tả trạng thái implementation hiện tại của codebase.
+This document describes the current implementation status of the codebase.
 
 ## Stack
 
@@ -8,46 +8,46 @@ Tài liệu này mô tả trạng thái implementation hiện tại của codeba
 - `TypeScript`
 - `Ink`
 - `React`
-- `SQLite` qua `bun:sqlite`
+- `SQLite` via `bun:sqlite`
 
-## Runtime Flow Hiện Tại
+## Current Runtime Flow
 
-Ứng dụng hiện chạy theo flow:
+The application currently runs with this flow:
 
-1. nhập `base URL`
-2. nhập `local root`
-3. nhập `remote root`
-4. chọn mode:
+1. enter the `base URL`
+2. enter the `local root`
+3. enter the `remote root`
+4. choose a mode:
    - `bidirectional`
    - `pull-only`
    - `push-only`
-5. scan local + remote
-6. đọc `baseline` + `pending tombstones`
-7. preview plan
-8. execute khi người dùng xác nhận
+5. scan local and remote
+6. read `baseline` and `pending tombstones`
+7. preview the plan
+8. execute after user confirmation
 
-## Những Gì Đã Có
+## What Already Exists
 
 ### Device Adapter
 
 - probe `/files`
-- scan remote tree qua `/api/files`
-- download file
-- upload file
+- scan the remote tree through `/api/files`
+- download files
+- upload files
 - `mkdir`
 - `rename`
 - `move`
-- `delete` remote qua `POST /delete`
+- remote `delete` through `POST /delete`
 
 ### Sync Engine
 
 - first-run heuristics
-- 3-way diff:
+- 3-way diff across:
   - `local`
   - `remote`
   - `baseline`
-- `hash-on-demand` cho case same-size ambiguous ở remote
-- planner cho:
+- `hash-on-demand` for same-size ambiguous cases on remote
+- planner support for:
   - `upload`
   - `download`
   - `conflict`
@@ -55,23 +55,23 @@ Tài liệu này mô tả trạng thái implementation hiện tại của codeba
   - `local-delete`
   - `remote-delete`
   - `delete-candidate`
-- conflict resolution tối thiểu:
-  - giữ local ở path gốc
-  - lưu remote thành `conflict-remote-*`
-  - upload cả hai bản lên remote
+- minimal conflict resolution:
+  - keep the local file at the original path
+  - save the remote file as `conflict-remote-*`
+  - upload both copies back to remote
 
 ### State Store
 
-Các bảng hiện có:
+Current tables:
 
 - `sync_profiles`
 - `sync_entries`
 - `sync_tombstones`
 - `sync_runs`
 
-State hiện lưu:
+Currently stored state:
 
-- baseline file-level:
+- baseline at file level:
   - `relative_path`
   - `size`
   - `hash`
@@ -84,38 +84,38 @@ State hiện lưu:
 
 ### TUI
 
-- nhập config
-- preview plan
+- configuration input
+- plan preview
 - execute
 - history
 - run detail
-- progress action-level khi execute:
-  - tổng action
-  - action đang chạy
-  - action vừa xong
-  - lỗi hiện tại nếu fail
+- action-level execution progress:
+  - total action count
+  - current action
+  - last completed action
+  - current error on failure
 
 ## Feature Flags
 
-Hiện đang có:
+Current flags:
 
 - `enableProfileManagement = false`
 
-Điều đó có nghĩa là:
+This means:
 
-- code profile picker vẫn còn
-- runtime mặc định đang dùng một profile cố định
+- the profile picker code still exists
+- runtime currently defaults to a single fixed profile
 
-## Verify Đã Có
+## Existing Verification
 
 - `bun test src`
 - `bun run build`
 
-## Điểm Chưa Ổn Hoặc Chưa Làm
+## Known Gaps Or Incomplete Areas
 
-- chưa có rename detection thật sự
-- chưa có retry/resume khi lỗi mạng
-- chưa có byte-level progress
-- chưa có review riêng cho `delete-candidate`
-- chưa có test integration cho executor
-- chưa có cleanup cho folder trash legacy nếu trước đây đã tạo ra
+- no real rename detection yet
+- no retry/resume for network failures yet
+- no byte-level progress yet
+- no dedicated review flow for `delete-candidate`
+- no executor integration tests yet
+- no cleanup flow for legacy trash folders created by older behavior

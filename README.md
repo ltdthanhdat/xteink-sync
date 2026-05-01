@@ -1,0 +1,162 @@
+# Xteink Sync
+
+File sync for local machines and Xteink devices running CrossPoint firmware, with sync plan preview and sync history.
+
+> CrossPoint firmware only.
+
+Installation • Quick Start • Screenshots • Documentation
+
+<!-- Insert hero screenshot here. Recommended path: docs/images/hero.png -->
+_Hero screenshot placeholder_
+
+## Why Xteink Sync
+
+Xteink Sync is built for a simple workflow:
+
+1. scan local and remote
+2. preview the sync plan
+3. execute only after review
+4. inspect the run later in history
+
+That keeps sync decisions visible instead of hiding them behind a blind push/pull flow.
+
+## Features
+
+- Preview the sync plan before execution
+- Sync files between a local folder and a CrossPoint device
+- Support `bidirectional`, `pull-only`, and `push-only` modes
+- Surface conflicts separately from safe transfers
+- Store sync history for later review
+- Persist sync state to make future runs safer
+
+## Built With
+
+- Bun
+- TypeScript
+- Ink
+- React
+- SQLite
+
+## Installation
+
+### Prerequisites
+
+- Bun installed and available in `PATH`
+- A device running CrossPoint firmware
+- `~/.local/bin` available in `PATH`
+
+### Install from Source
+
+```bash
+git clone <your-repo-url>
+cd xteink-sync
+bun install
+make install
+```
+
+This builds the project and installs a local launcher at `~/.local/bin/xteink-sync`.
+
+If Bun is installed but not available in `PATH`, use:
+
+```bash
+BUN_BIN=$HOME/.bun/bin/bun make install
+```
+
+Then run:
+
+```bash
+xteink-sync
+```
+
+### Uninstall
+
+```bash
+make uninstall
+```
+
+## Quick Start
+
+1. Launch `xteink-sync`
+2. Configure the device URL, local root, and sync mode
+3. Let the app scan both sides
+4. Review the generated sync plan
+5. Execute the sync if the plan looks correct
+6. Revisit the result from sync history
+
+## Screenshots
+
+### Settings
+
+<!-- Insert screenshot here. Recommended path: docs/images/settings.png -->
+_Screenshot placeholder_
+
+### Plan Preview
+
+<!-- Insert screenshot here. Recommended path: docs/images/plan-preview.png -->
+_Screenshot placeholder_
+
+### Execution Progress
+
+<!-- Insert screenshot here. Recommended path: docs/images/execution-progress.png -->
+_Screenshot placeholder_
+
+### Sync History
+
+<!-- Insert screenshot here. Recommended path: docs/images/sync-history.png -->
+_Screenshot placeholder_
+
+## Typical Workflow
+
+### 1. Open the settings screen
+
+Choose the device URL, local root, and sync mode.
+
+<!-- Insert screenshot here. Recommended path: docs/images/step-1-settings.png -->
+_Screenshot placeholder_
+
+### 2. Start a scan
+
+The app validates the local root, connects to the device, scans both sides, and builds a sync plan.
+
+<!-- Insert screenshot here. Recommended path: docs/images/step-2-scan.png -->
+_Screenshot placeholder_
+
+### 3. Review the plan
+
+Inspect uploads, downloads, deletes, conflicts, and skipped items before execution.
+
+<!-- Insert screenshot here. Recommended path: docs/images/step-3-preview.png -->
+_Screenshot placeholder_
+
+### 4. Execute the sync
+
+Run the planned actions and monitor execution progress in the TUI.
+
+<!-- Insert screenshot here. Recommended path: docs/images/step-4-execute.png -->
+_Screenshot placeholder_
+
+### 5. Check sync history
+
+Review previous runs and inspect summaries afterward.
+
+<!-- Insert screenshot here. Recommended path: docs/images/step-5-history.png -->
+_Screenshot placeholder_
+
+## Sync Modes
+
+- `bidirectional`: sync both sides and surface conflicts when both changed
+- `pull-only`: prefer the device as the source of truth
+- `push-only`: prefer the local folder as the source of truth
+
+## Notes
+
+- This project is intended for CrossPoint firmware devices only.
+- Sync state is stored in `.xteink-sync/state.db` under the current working directory.
+- The local install command creates a launcher in `~/.local/bin`, but the app still runs from your cloned checkout.
+
+## Documentation
+
+- Current implementation status: [docs/current-state.md](docs/current-state.md)
+- Follow-up work and gaps: [docs/next-steps.md](docs/next-steps.md)
+- Sync behavior details: [docs/sync-flow.md](docs/sync-flow.md)
+- Project plan: [docs/sync-plan.md](docs/sync-plan.md)

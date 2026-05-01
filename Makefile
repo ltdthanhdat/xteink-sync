@@ -1,5 +1,18 @@
+BUN ?= bun
+
+.PHONY: run build test install uninstall
+
 run:
-	~/.bun/bin/bun run src/index.tsx
+	$(BUN) run src/index.tsx
 
 build:
-	~/.bun/bin/bun run build
+	$(BUN) run build
+
+test:
+	$(BUN) test src
+
+install:
+	sh ./scripts/install-local.sh
+
+uninstall:
+	sh ./scripts/uninstall-local.sh

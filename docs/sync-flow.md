@@ -1,8 +1,8 @@
-# Luồng Sync
+# Sync Flow
 
-Tài liệu này chốt luồng planner/executor hiện tại và delete policy.
+This document defines the current planner/executor flow and delete policy.
 
-## Luồng Tổng Quát
+## Overall Flow
 
 ```text
 config
@@ -14,13 +14,13 @@ config
 -> build plan
 -> preview
 -> execute
--> update baseline nếu trạng thái cuối an toàn
+-> update baseline if the final state is safe
 -> record run
 ```
 
 ## Planner Inputs
 
-Với mỗi path, planner nhìn 4 nguồn:
+For each path, the planner looks at 4 sources:
 
 - `local`
 - `remote`
@@ -29,7 +29,7 @@ Với mỗi path, planner nhìn 4 nguồn:
 
 ## Planner Outputs
 
-Planner hiện có thể tạo các action:
+The planner can currently produce these actions:
 
 - `upload`
 - `download`
@@ -41,107 +41,107 @@ Planner hiện có thể tạo các action:
 
 ## First Run Rule
 
-Nếu chưa có `baseline`:
+If no `baseline` exists yet:
 
-- không được coi missing file là delete
-- chỉ xử lý như:
+- a missing file must not be treated as a delete
+- only handle:
   - local-only
   - remote-only
-  - same-path-both-side
+  - same-path-on-both-sides
 
 ## Hash Rule
 
-Nếu `baseline.size == remote.size`:
+If `baseline.size == remote.size`:
 
-- remote chưa chắc unchanged
-- engine phải `downloadBytes()` và `hash-on-demand` trước khi bỏ qua
+- remote is not guaranteed to be unchanged
+- the engine must `downloadBytes()` and do `hash-on-demand` before skipping
 
 ## Bidirectional Rule
 
 ### Update
 
-- chỉ local changed -> `upload`
-- chỉ remote changed -> `download`
-- cả hai changed -> `conflict`
+- only local changed -> `upload`
+- only remote changed -> `download`
+- both changed -> `conflict`
 
 ### Delete
 
-Nếu path có trong baseline:
+If the path exists in baseline:
 
-- local missing, remote vẫn đúng baseline
-  - tạo `remote-delete`
+- local missing, remote still matches baseline
+  - create `remote-delete`
   - tombstone side = `local`
 
-- remote missing, local vẫn đúng baseline
-  - tạo `local-delete`
+- remote missing, local still matches baseline
+  - create `local-delete`
   - tombstone side = `remote`
 
-- một bên missing nhưng bên còn lại cũng changed
+- one side is missing but the other side also changed
   - `delete vs modify conflict`
 
 ## Push-only Rule
 
-- local là authoritative side cho create/update/delete
-- remote drift có thể bị overwrite hoặc delete tùy case
+- local is the authoritative side for create/update/delete
+- remote drift may be overwritten or deleted depending on the case
 
-Cases chính:
+Main cases:
 
 - local changed, remote unchanged -> `upload`
-- local missing, remote còn baseline -> `remote-delete`
-- local còn baseline, remote missing -> `upload`
+- local missing, remote still in baseline -> `remote-delete`
+- local still in baseline, remote missing -> `upload`
 
 ## Pull-only Rule
 
-- remote là authoritative side cho create/update/delete
+- remote is the authoritative side for create/update/delete
 
-Cases chính:
+Main cases:
 
 - remote changed, local unchanged -> `download`
-- remote missing, local còn baseline -> `local-delete`
-- remote còn baseline, local missing -> `download`
+- remote missing, local still in baseline -> `local-delete`
+- remote still in baseline, local missing -> `download`
 
 ## Tombstone Rule
 
-Tombstone dùng để nhớ:
+Tombstones are used to remember:
 
-- path nào đã bị xóa có chủ đích
-- xóa từ phía nào
-- delete đó đã propagate xong chưa
+- which path was intentionally deleted
+- which side initiated the delete
+- whether that delete has finished propagating
 
-Tombstone chỉ nên được `resolved` khi:
+A tombstone should only be marked `resolved` when:
 
-- action delete đã chạy xong
-- path gốc đã hội tụ
+- the delete action finished
+- the original path has converged
 
-## Hội Tụ
+## Convergence
 
-Một path được coi là hội tụ khi:
+A path is considered converged when:
 
-- action cần thiết đã chạy xong
-- không còn conflict chưa resolve
-- trạng thái logic cuối của local và remote đã thống nhất
+- the required action has finished
+- no unresolved conflict remains
+- the final logical state of local and remote is consistent
 
-Ví dụ:
+Examples:
 
-- cả hai cùng có file giống nhau
-- hoặc cả hai cùng không còn file ở path gốc sau delete
+- both sides still have the same file
+- or both sides no longer have the original path after delete propagation
 
 ## Delete Rule
 
-Implementation hiện tại:
+Current implementation:
 
 - local delete:
-  - xóa file tại path gốc bằng hard delete
+  - remove the file at the original path with hard delete
 
 - remote delete:
-  - gọi `POST /delete` cho path gốc trên device
+  - call `POST /delete` for the original path on the device
 
-- tombstone vẫn được giữ để replay delete chưa propagate xong
-- scanner vẫn bỏ qua folder legacy `.xteink-trash` và `xteink-trash` nếu còn tồn tại
+- tombstones are still kept so unfinished delete propagation can be replayed
+- the scanner still ignores legacy `.xteink-trash` and `xteink-trash` folders if they still exist
 
 ## Execute Rule
 
-Executor chạy lần lượt từng action:
+The executor runs these actions sequentially:
 
 - `download`
 - `upload`
@@ -149,20 +149,20 @@ Executor chạy lần lượt từng action:
 - `remote-delete`
 - `conflict`
 
-Không execute:
+It does not execute:
 
 - `skip`
 - `delete-candidate`
 
 ## Baseline Update Rule
 
-Chỉ auto update baseline khi:
+Only auto-update baseline when:
 
-- execute xong
-- không còn `conflict`
-- không còn `delete-candidate`
+- execution finished
+- no `conflict` remains
+- no `delete-candidate` remains
 
-Nếu còn unresolved state:
+If unresolved state still exists:
 
-- chỉ record run
-- không update baseline tự động
+- only record the run
+- do not update baseline automatically
