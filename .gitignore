@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.xteink-sync/
+.playwright-mcp/
+.codex
+.agents/
