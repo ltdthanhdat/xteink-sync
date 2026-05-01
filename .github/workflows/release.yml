@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          bun build --compile --external react-devtools-core --outfile "release/${{ matrix.executable }}" ./src/index.tsx
+          bun build --compile --outfile "release/${{ matrix.executable }}" ./src/index.tsx
 
       - name: Package archive (Unix)
         if: runner.os != 'Windows'
