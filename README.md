@@ -12,8 +12,7 @@ File sync for local machines and Xteink devices running CrossPoint firmware, wit
 ![CI](https://img.shields.io/github/actions/workflow/status/ltdthanhdat/xteink-sync/ci.yml?branch=master&label=CI)
 ![Release](https://img.shields.io/github/v/release/ltdthanhdat/xteink-sync?label=release)
 
-[Download](#download) • [Quick Start](#quick-start) • [Workflow](#typical-workflow)
-[Latest release](https://github.com/ltdthanhdat/xteink-sync/releases/latest) • [All releases](https://github.com/ltdthanhdat/xteink-sync/releases)
+[Download](#download) • [Quick Start](#quick-start) • [Workflow](#typical-workflow) • [Latest release](https://github.com/ltdthanhdat/xteink-sync/releases/latest) • [All releases](https://github.com/ltdthanhdat/xteink-sync/releases)
 
 ## Why Xteink Sync
 
