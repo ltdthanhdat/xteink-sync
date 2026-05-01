@@ -110,6 +110,8 @@ This means:
 
 - `bun test src`
 - `bun run build`
+- `make build`
+- `make` targets resolve Bun from either `PATH` or `~/.bun/bin/bun`
 - GitHub Actions CI runs install, test, and build on `master` and pull requests
 - GitHub Actions release workflow builds precompiled release assets on version tags
 - Releases also publish a Unix install script for quick `curl`/`wget` installation
