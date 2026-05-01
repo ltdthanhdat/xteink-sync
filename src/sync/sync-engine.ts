@@ -2,9 +2,25 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
 import { XteinkClient } from "../device/xteink-client.js";
-import type { BaselineEntry, PlannedAction, ProbeResult, ScanSummary, SyncProfile, SyncRunSummary, TreeEntry } from "../types.js";
+import type {
+  BaselineEntry,
+  ExecutionProgress,
+  PlannedAction,
+  PlanSummary,
+  ProbeResult,
+  ScanSummary,
+  SyncProfile,
+  SyncRunSummary,
+  TombstoneEntry,
+  TreeEntry
+} from "../types.js";
+
+const TRASH_DIR_NAME = ".xteink-trash";
 
 const toPosixPath = (filePath: string): string => filePath.split(path.sep).join("/");
+
+const isTrashRelativePath = (relativePath: string): boolean =>
+  relativePath === TRASH_DIR_NAME || relativePath.startsWith(`${TRASH_DIR_NAME}/`);
 
 const scanLocalTree = (rootPath: string): TreeEntry[] => {
   const entries: TreeEntry[] = [];
@@ -14,6 +30,10 @@ const scanLocalTree = (rootPath: string): TreeEntry[] => {
     for (const entry of dirEntries) {
       const fullPath = path.join(currentPath, entry.name);
       const relativePath = toPosixPath(path.relative(rootPath, fullPath));
+      if (isTrashRelativePath(relativePath)) {
+        continue;
+      }
+
       if (entry.isDirectory()) {
         const stats = fs.statSync(fullPath);
         entries.push({
@@ -65,7 +85,7 @@ const toRemoteDir = (remoteRoot: string, relativePath: string): string => {
   return toRemotePath(remoteRoot, parent);
 };
 
-const appendConflictSuffix = (filePath: string, suffix: string): string => {
+const appendFileSuffix = (filePath: string, suffix: string): string => {
   const extension = path.extname(filePath);
   if (!extension) {
     return `${filePath}.${suffix}`;
@@ -73,6 +93,8 @@ const appendConflictSuffix = (filePath: string, suffix: string): string => {
 
   return `${filePath.slice(0, -extension.length)}.${suffix}${extension}`;
 };
+
+const timestampFragment = (): string => new Date().toISOString().replaceAll(":", "-");
 
 const sha256 = (bytes: Uint8Array): string => crypto.createHash("sha256").update(bytes).digest("hex");
 
@@ -88,18 +110,155 @@ const toBaselineEntries = (entries: TreeEntry[]): BaselineEntry[] =>
     }))
     .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
-const planActions = async (
+const buildPlanSummary = (actions: PlannedAction[]): PlanSummary => ({
+  upload: actions.filter((item) => item.kind === "upload").length,
+  download: actions.filter((item) => item.kind === "download").length,
+  conflict: actions.filter((item) => item.kind === "conflict").length,
+  skip: actions.filter((item) => item.kind === "skip").length,
+  localSoftDelete: actions.filter((item) => item.kind === "local-soft-delete").length,
+  remoteSoftDelete: actions.filter((item) => item.kind === "remote-soft-delete").length,
+  deleteCandidate: actions.filter((item) => item.kind === "delete-candidate").length,
+  sample: actions.slice(0, 12)
+});
+
+const localTrashPath = (localRoot: string, relativePath: string): string =>
+  path.join(localRoot, TRASH_DIR_NAME, appendFileSuffix(relativePath, `deleted-${timestampFragment()}`));
+
+const localDeleteName = (relativePath: string): string => appendFileSuffix(path.posix.basename(relativePath), `deleted-${timestampFragment()}`);
+
+type PlanContext = {
+  local?: TreeEntry;
+  remote?: TreeEntry;
+  baseline?: BaselineEntry;
+  localChanged: boolean;
+  remoteChanged: boolean;
+  tombstone?: TombstoneEntry;
+  mode: SyncProfile["mode"];
+};
+
+const planMissingPath = (pathKey: string, context: PlanContext): PlannedAction => {
+  const { local, remote, baseline, localChanged, remoteChanged, tombstone, mode } = context;
+  if (!baseline) {
+    throw new Error(`planMissingPath called without baseline for ${pathKey}`);
+  }
+
+  if (!local && remote) {
+    if (tombstone?.deletedOn === "local") {
+      return {
+        path: pathKey,
+        kind: "remote-soft-delete",
+        reason: "pending tombstone from local delete",
+        remoteSize: remote.size,
+        tombstoneSide: "local"
+      };
+    }
+
+    if (mode === "push-only") {
+      return {
+        path: pathKey,
+        kind: "remote-soft-delete",
+        reason: "local is authoritative for delete in push-only mode",
+        remoteSize: remote.size
+      };
+    }
+
+    if (mode === "pull-only") {
+      return {
+        path: pathKey,
+        kind: remoteChanged ? "download" : "download",
+        reason: remoteChanged ? "remote changed while local is missing in pull-only mode" : "restore local file from remote baseline in pull-only mode",
+        remoteSize: remote.size
+      };
+    }
+
+    if (remoteChanged) {
+      return {
+        path: pathKey,
+        kind: "conflict",
+        reason: "delete vs modify conflict: local missing but remote changed since baseline",
+        remoteSize: remote.size
+      };
+    }
+
+    return {
+      path: pathKey,
+      kind: "remote-soft-delete",
+      reason: "propagate local delete to remote from trusted baseline",
+      remoteSize: remote.size,
+      tombstoneSide: "local"
+    };
+  }
+
+  if (local && !remote) {
+    if (tombstone?.deletedOn === "remote") {
+      return {
+        path: pathKey,
+        kind: "local-soft-delete",
+        reason: "pending tombstone from remote delete",
+        localSize: local.size,
+        tombstoneSide: "remote"
+      };
+    }
+
+    if (mode === "pull-only") {
+      return {
+        path: pathKey,
+        kind: "local-soft-delete",
+        reason: "remote is authoritative for delete in pull-only mode",
+        localSize: local.size
+      };
+    }
+
+    if (mode === "push-only") {
+      return {
+        path: pathKey,
+        kind: "upload",
+        reason: localChanged ? "local changed while remote is missing in push-only mode" : "restore remote file from local baseline in push-only mode",
+        localSize: local.size
+      };
+    }
+
+    if (localChanged) {
+      return {
+        path: pathKey,
+        kind: "conflict",
+        reason: "delete vs modify conflict: remote missing but local changed since baseline",
+        localSize: local.size
+      };
+    }
+
+    return {
+      path: pathKey,
+      kind: "local-soft-delete",
+      reason: "propagate remote delete to local from trusted baseline",
+      localSize: local.size,
+      tombstoneSide: "remote"
+    };
+  }
+
+  return {
+    path: pathKey,
+    kind: "delete-candidate",
+    reason: "unexpected missing-path state",
+    localSize: local?.size,
+    remoteSize: remote?.size
+  };
+};
+
+export const planActions = async (
   localEntries: TreeEntry[],
   remoteEntries: TreeEntry[],
   baselineEntries: BaselineEntry[],
+  pendingTombstones: TombstoneEntry[],
   mode: SyncProfile["mode"],
-  client: XteinkClient,
+  client: Pick<XteinkClient, "downloadBytes">,
   remoteRoot: string
 ): Promise<PlannedAction[]> => {
   const localFiles = new Map(localEntries.filter((entry) => !entry.isDirectory).map((entry) => [entry.relativePath, entry]));
   const remoteFiles = new Map(remoteEntries.filter((entry) => !entry.isDirectory).map((entry) => [entry.relativePath, entry]));
   const baselineFiles = new Map(baselineEntries.map((entry) => [entry.relativePath, entry]));
-  const allPaths = new Set<string>([...localFiles.keys(), ...remoteFiles.keys(), ...baselineFiles.keys()]);
+  const tombstones = new Map(pendingTombstones.map((entry) => [entry.relativePath, entry]));
+  const allPaths = new Set<string>([...localFiles.keys(), ...remoteFiles.keys(), ...baselineFiles.keys(), ...tombstones.keys()]);
   const planned: PlannedAction[] = [];
   const localHashCache = new Map<string, string>();
   const remoteHashCache = new Map<string, string>();
@@ -131,6 +290,7 @@ const planActions = async (
     const local = localFiles.get(pathKey);
     const remote = remoteFiles.get(pathKey);
     const baseline = baselineFiles.get(pathKey);
+    const tombstone = tombstones.get(pathKey);
     let localChanged = local ? !baseline || baseline.size !== local.size : baseline !== undefined;
     let remoteChanged = remote ? !baseline || baseline.size !== remote.size : baseline !== undefined;
 
@@ -210,35 +370,28 @@ const planActions = async (
       continue;
     }
 
-    if (local && !remote) {
+    if (!local && !remote) {
       planned.push({
         path: pathKey,
-        kind: !localChanged ? "skip" : mode === "pull-only" ? "skip" : "upload",
-        reason: !localChanged
-          ? "missing remote but local still matches baseline"
-          : mode === "pull-only"
-            ? "local changed but skipped in pull-only mode"
-            : "only local changed since baseline",
-        localSize: local.size
-      });
-      continue;
-    }
-
-    if (!local && remote) {
-      planned.push({
-        path: pathKey,
-        kind: !remoteChanged ? "skip" : mode === "push-only" ? "skip" : "download",
-        reason: !remoteChanged
-          ? "missing local but remote still matches baseline"
-          : mode === "push-only"
-            ? "remote changed but skipped in push-only mode"
-            : "only remote changed since baseline",
-        remoteSize: remote.size
+        kind: "skip",
+        reason: tombstone ? "already converged on tombstoned delete" : "missing on both sides since baseline",
+        tombstoneSide: tombstone?.deletedOn
       });
       continue;
     }
 
     if (!local || !remote) {
+      planned.push(
+        planMissingPath(pathKey, {
+          local,
+          remote,
+          baseline,
+          localChanged,
+          remoteChanged,
+          tombstone,
+          mode
+        })
+      );
       continue;
     }
 
@@ -310,14 +463,14 @@ const planActions = async (
 };
 
 export class SyncEngine {
-  private async collectSummary(profile: SyncProfile, baselineEntries: BaselineEntry[]): Promise<SyncRunSummary> {
+  private async collectSummary(profile: SyncProfile, baselineEntries: BaselineEntry[], pendingTombstones: TombstoneEntry[]): Promise<SyncRunSummary> {
     const client = new XteinkClient(profile.baseUrl);
     const probe: ProbeResult = await client.probe();
     const localEntries = scanLocalTree(profile.localRoot);
     const remoteEntries = await client.scanTree(profile.remoteRoot);
     const local = summarizeScan(localEntries);
     const remote = summarizeScan(remoteEntries);
-    const actions = await planActions(localEntries, remoteEntries, baselineEntries, profile.mode, client, profile.remoteRoot);
+    const actions = await planActions(localEntries, remoteEntries, baselineEntries, pendingTombstones, profile.mode, client, profile.remoteRoot);
     const currentEntries = toBaselineEntries(localEntries);
 
     const scan: ScanSummary = {
@@ -327,69 +480,108 @@ export class SyncEngine {
       remoteDirs: remote.dirs
     };
 
-    const plan = {
-      upload: actions.filter((item) => item.kind === "upload").length,
-      download: actions.filter((item) => item.kind === "download").length,
-      conflict: actions.filter((item) => item.kind === "conflict").length,
-      skip: actions.filter((item) => item.kind === "skip").length,
-      sample: actions.slice(0, 12)
-    };
-
     return {
       profileName: profile.name,
       baseUrl: probe.normalizedBaseUrl,
       mode: profile.mode,
       probe,
       scan,
-      plan,
+      plan: buildPlanSummary(actions),
       baselineEntryCount: baselineEntries.length,
+      pendingTombstoneCount: pendingTombstones.length,
       currentEntries,
       actions
     };
   }
 
-  async run(profile: SyncProfile, baselineEntries: BaselineEntry[]): Promise<SyncRunSummary> {
+  async run(profile: SyncProfile, baselineEntries: BaselineEntry[], pendingTombstones: TombstoneEntry[] = []): Promise<SyncRunSummary> {
     if (!fs.existsSync(profile.localRoot)) {
       throw new Error(`Local root does not exist: ${profile.localRoot}`);
     }
 
-    return this.collectSummary(profile, baselineEntries);
+    return this.collectSummary(profile, baselineEntries, pendingTombstones);
   }
 
-  async execute(profile: SyncProfile, baselineEntries: BaselineEntry[]): Promise<SyncRunSummary> {
-    const preview = await this.run(profile, baselineEntries);
+  async execute(
+    profile: SyncProfile,
+    baselineEntries: BaselineEntry[],
+    pendingTombstones: TombstoneEntry[] = [],
+    onProgress?: (progress: ExecutionProgress) => void
+  ): Promise<SyncRunSummary> {
+    const preview = await this.run(profile, baselineEntries, pendingTombstones);
     const client = new XteinkClient(profile.baseUrl);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const executableActions = preview.actions.filter((action) => action.kind !== "skip" && action.kind !== "delete-candidate");
+    let completedActions = 0;
+
+    onProgress?.({
+      phase: "running",
+      totalActions: executableActions.length,
+      completedActions
+    });
 
     for (const action of preview.actions) {
-      if (action.kind === "upload") {
-        const localPath = path.join(profile.localRoot, action.path);
-        const remoteDir = toRemoteDir(profile.remoteRoot, action.path);
-        await client.uploadFile(localPath, remoteDir);
+      if (action.kind === "skip" || action.kind === "delete-candidate") {
         continue;
       }
 
-      if (action.kind === "download") {
-        const remotePath = toRemotePath(profile.remoteRoot, action.path);
+      onProgress?.({
+        phase: "running",
+        totalActions: executableActions.length,
+        completedActions,
+        currentAction: action
+      });
+
+      try {
         const localPath = path.join(profile.localRoot, action.path);
-        await client.downloadFile(remotePath, localPath);
+        const remotePath = toRemotePath(profile.remoteRoot, action.path);
+        if (action.kind === "download") {
+          await client.downloadFile(remotePath, localPath);
+        } else if (action.kind === "upload") {
+          await client.uploadFile(localPath, toRemoteDir(profile.remoteRoot, action.path));
+        } else if (action.kind === "local-soft-delete") {
+          const trashPath = localTrashPath(profile.localRoot, action.path);
+          fs.mkdirSync(path.dirname(trashPath), { recursive: true });
+          fs.renameSync(localPath, trashPath);
+        } else if (action.kind === "remote-soft-delete") {
+          await client.softDeleteFile(profile.remoteRoot, action.path, localDeleteName(action.path));
+        } else {
+          const remoteBytes = await client.downloadBytes(remotePath);
+          const conflictLocalPath = appendFileSuffix(localPath, `conflict-remote-${timestampFragment()}`);
+          const conflictRemoteLocalPath = appendFileSuffix(localPath, `conflict-remote-upload-${timestampFragment()}`);
+          fs.mkdirSync(path.dirname(conflictLocalPath), { recursive: true });
+          fs.writeFileSync(conflictLocalPath, Buffer.from(remoteBytes));
+          fs.copyFileSync(conflictLocalPath, conflictRemoteLocalPath);
+          await client.uploadFile(conflictRemoteLocalPath, toRemoteDir(profile.remoteRoot, action.path));
+          await client.uploadFile(localPath, toRemoteDir(profile.remoteRoot, action.path));
+          fs.rmSync(conflictRemoteLocalPath, { force: true });
+        }
+      } catch (error) {
+        onProgress?.({
+          phase: "failed",
+          totalActions: executableActions.length,
+          completedActions,
+          currentAction: action,
+          failedAction: action,
+          errorMessage: error instanceof Error ? error.message : String(error)
+        });
+        throw error;
       }
 
-      if (action.kind === "conflict") {
-        const remotePath = toRemotePath(profile.remoteRoot, action.path);
-        const remoteDir = toRemoteDir(profile.remoteRoot, action.path);
-        const localPath = path.join(profile.localRoot, action.path);
-        const localConflictPath = appendConflictSuffix(localPath, `conflict-remote-${timestamp}`);
-        const remoteBytes = await client.downloadBytes(remotePath);
-
-        fs.mkdirSync(path.dirname(localConflictPath), { recursive: true });
-        fs.writeFileSync(localConflictPath, Buffer.from(remoteBytes));
-
-        await client.uploadFile(localConflictPath, remoteDir);
-        await client.uploadFile(localPath, remoteDir);
-      }
+      completedActions += 1;
+      onProgress?.({
+        phase: "running",
+        totalActions: executableActions.length,
+        completedActions,
+        lastCompletedAction: action
+      });
     }
 
-    return this.collectSummary(profile, preview.currentEntries);
+    onProgress?.({
+      phase: "completed",
+      totalActions: executableActions.length,
+      completedActions
+    });
+
+    return this.collectSummary(profile, baselineEntries, pendingTombstones);
   }
 }

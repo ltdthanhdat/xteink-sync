@@ -3,6 +3,8 @@ import path from "node:path";
 import { URL } from "node:url";
 import type { TreeEntry } from "../types.js";
 
+const TRASH_DIR_NAME = ".xteink-trash";
+
 type RemoteItem = {
   name: string;
   size: number;
@@ -25,6 +27,9 @@ const joinRemotePath = (base: string, name: string): string => {
 
   return `${base}/${name}`;
 };
+
+const isTrashRelativePath = (relativePath: string): boolean =>
+  relativePath === TRASH_DIR_NAME || relativePath.startsWith(`${TRASH_DIR_NAME}/`);
 
 export class XteinkClient {
   readonly baseUrl: string;
@@ -118,6 +123,48 @@ export class XteinkClient {
     }
   }
 
+  async renamePath(remotePath: string, newName: string): Promise<void> {
+    const form = new FormData();
+    form.append("path", remotePath);
+    form.append("name", newName);
+
+    const response = await fetch(`${this.baseUrl}/rename`, {
+      method: "POST",
+      body: form
+    });
+
+    if (!response.ok) {
+      throw new Error(`rename failed for ${remotePath} -> ${newName}: ${response.status}`);
+    }
+  }
+
+  async movePath(remotePath: string, destinationDir: string): Promise<void> {
+    await this.ensureRemoteDir(destinationDir);
+    const form = new FormData();
+    form.append("path", remotePath);
+    form.append("dest", destinationDir);
+
+    const response = await fetch(`${this.baseUrl}/move`, {
+      method: "POST",
+      body: form
+    });
+
+    if (!response.ok) {
+      throw new Error(`move failed for ${remotePath} -> ${destinationDir}: ${response.status}`);
+    }
+  }
+
+  async softDeleteFile(remoteRoot: string, relativePath: string, deletedName: string): Promise<void> {
+    const parentDir = path.posix.dirname(relativePath);
+    const trashParent = parentDir === "." ? TRASH_DIR_NAME : `${TRASH_DIR_NAME}/${parentDir}`;
+    const trashDir = remoteRoot === "/" ? `/${trashParent}` : `${remoteRoot}/${trashParent}`;
+    const originalRemotePath = remoteRoot === "/" ? `/${relativePath}` : `${remoteRoot}/${relativePath}`;
+    const movedRemotePath = `${trashDir}/${path.posix.basename(relativePath)}`;
+
+    await this.movePath(originalRemotePath, trashDir);
+    await this.renamePath(movedRemotePath, deletedName);
+  }
+
   async downloadFile(remotePath: string, localPath: string): Promise<void> {
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const response = await fetch(`${this.baseUrl}/download?path=${encodeURIComponent(remotePath)}`);
@@ -152,6 +199,10 @@ export class XteinkClient {
       for (const item of items) {
         const fullPath = joinRemotePath(current, item.name);
         const relativePath = fullPath.slice(rootPath.length).replace(/^\/+/, "");
+        if (isTrashRelativePath(relativePath)) {
+          continue;
+        }
+
         if (item.isDirectory) {
           entries.push({
             path: fullPath,

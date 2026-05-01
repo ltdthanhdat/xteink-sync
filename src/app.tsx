@@ -7,7 +7,7 @@ import { HistoryView } from "./tui/history-view.js";
 import { ModeSelect } from "./tui/mode-select.js";
 import { ProfilePicker } from "./tui/profile-picker.js";
 import { PromptInput } from "./tui/prompt-input.js";
-import type { SyncMode, SyncProfile, SyncRunRecord, SyncRunSummary } from "./types.js";
+import type { ExecutionProgress, SyncMode, SyncProfile, SyncRunRecord, SyncRunSummary, TombstoneSide } from "./types.js";
 
 type Step = "profile-picker" | "profile-delete-confirm" | "history" | "history-detail" | "profile-name" | "base-url" | "local-root" | "remote-root" | "mode" | "running" | "executing" | "done" | "error";
 
@@ -46,6 +46,11 @@ export const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [showConflictDetails, setShowConflictDetails] = useState(false);
+  const [executionProgress, setExecutionProgress] = useState<ExecutionProgress>({
+    phase: "planning",
+    totalActions: 0,
+    completedActions: 0
+  });
 
   useInput((input) => {
     if (step === "profile-picker" && input.toLowerCase() === "h") {
@@ -97,13 +102,13 @@ export const App = () => {
       exit();
     }
 
-    if (step === "done" && input.toLowerCase() === "s" && result) {
-      stateStore.replaceBaselineEntries(result.profileName, result.currentEntries);
-      setInfoMessage(`Đã lưu ${result.currentEntries.length} file vào baseline state.`);
-    }
-
     if (step === "done" && input.toLowerCase() === "e") {
       setInfoMessage(null);
+      setExecutionProgress({
+        phase: "planning",
+        totalActions: 0,
+        completedActions: 0
+      });
       setStep("executing");
     }
 
@@ -131,7 +136,8 @@ export const App = () => {
         stateStore.upsertProfile(profile);
         setProfiles(stateStore.listProfiles());
         const baselineEntries = stateStore.listBaselineEntries(profile.name);
-        const summary = await syncEngine.run(profile, baselineEntries);
+        const pendingTombstones = stateStore.listPendingTombstones(profile.name);
+        const summary = await syncEngine.run(profile, baselineEntries, pendingTombstones);
         stateStore.recordRun(profile.name, "success", summary, startedAt);
         setRecentRuns(stateStore.listRecentRuns());
         setResult(summary);
@@ -168,23 +174,47 @@ export const App = () => {
     const execute = async () => {
       try {
         const baselineEntries = stateStore.listBaselineEntries(profile.name);
-        const summary = await syncEngine.execute(profile, baselineEntries);
-        if (summary.plan.conflict === 0) {
+        const pendingTombstones = stateStore.listPendingTombstones(profile.name);
+        const previewTombstones =
+          result?.actions
+            .filter((action) => (action.kind === "local-soft-delete" || action.kind === "remote-soft-delete") && action.tombstoneSide !== undefined)
+            .map((action) => ({
+              relativePath: action.path,
+              deletedOn: action.tombstoneSide as TombstoneSide
+            })) ?? [];
+
+        stateStore.upsertPendingTombstones(profile.name, previewTombstones);
+        const summary = await syncEngine.execute(
+          profile,
+          baselineEntries,
+          stateStore.listPendingTombstones(profile.name),
+          setExecutionProgress
+        );
+        if (summary.plan.conflict === 0 && summary.plan.deleteCandidate === 0) {
           stateStore.replaceBaselineEntries(profile.name, summary.currentEntries);
         }
+        stateStore.resolveTombstones(
+          profile.name,
+          previewTombstones.map((item) => item.relativePath)
+        );
         stateStore.recordRun(profile.name, "success", summary, startedAt);
         setRecentRuns(stateStore.listRecentRuns());
         setResult(summary);
         setInfoMessage(
-          summary.plan.conflict === 0
-            ? `Đã thực thi ${summary.plan.upload} upload và ${summary.plan.download} download. Baseline đã được cập nhật.`
-            : `Đã thực thi ${summary.plan.upload} upload và ${summary.plan.download} download, nhưng còn ${summary.plan.conflict} conflict nên baseline chưa được cập nhật tự động.`
+          summary.plan.conflict === 0 && summary.plan.deleteCandidate === 0
+            ? `Đã thực thi ${summary.plan.upload} upload, ${summary.plan.download} download và ${summary.plan.localSoftDelete + summary.plan.remoteSoftDelete} soft delete. Baseline đã được cập nhật.`
+            : `Đã thực thi ${summary.plan.upload} upload, ${summary.plan.download} download và ${summary.plan.localSoftDelete + summary.plan.remoteSoftDelete} soft delete, nhưng còn ${summary.plan.conflict} conflict / ${summary.plan.deleteCandidate} delete-candidate nên baseline chưa được cập nhật tự động.`
         );
-        setShowConflictDetails(summary.plan.conflict > 0);
+        setShowConflictDetails(summary.plan.conflict > 0 || summary.plan.deleteCandidate > 0);
         setStep("done");
       } catch (runError) {
         const message = runError instanceof Error ? runError.message : String(runError);
         setError(message);
+        setExecutionProgress((current) => ({
+          ...current,
+          phase: "failed",
+          errorMessage: message
+        }));
         setStep("error");
       }
     };
@@ -296,7 +326,9 @@ export const App = () => {
         </Text>
         <Text>
           Plan: {selectedRun.summary.plan.upload} upload / {selectedRun.summary.plan.download} download /{" "}
-          {selectedRun.summary.plan.conflict} conflict / {selectedRun.summary.plan.skip} skip
+          {(selectedRun.summary.plan.localSoftDelete ?? 0) + (selectedRun.summary.plan.remoteSoftDelete ?? 0)} soft-delete /{" "}
+          {selectedRun.summary.plan.deleteCandidate ?? 0} delete-candidate / {selectedRun.summary.plan.conflict} conflict /{" "}
+          {selectedRun.summary.plan.skip} skip
         </Text>
         <Newline />
         <Text color={showRunAllActions ? "cyan" : "red"}>{showRunAllActions ? "All actions:" : "Conflicts:"}</Text>
@@ -388,6 +420,25 @@ export const App = () => {
         <Text>Local root: {localRoot}</Text>
         <Text>Remote root: {remoteRoot}</Text>
         <Text>Mode: {mode}</Text>
+        {step === "executing" ? (
+          <>
+            <Newline />
+            <Text>
+              Progress: {executionProgress.completedActions}/{executionProgress.totalActions}
+            </Text>
+            {executionProgress.currentAction ? (
+              <Text color="yellow">
+                Current: {executionProgress.currentAction.kind} {executionProgress.currentAction.path}
+              </Text>
+            ) : null}
+            {executionProgress.lastCompletedAction ? (
+              <Text color="green">
+                Last done: {executionProgress.lastCompletedAction.kind} {executionProgress.lastCompletedAction.path}
+              </Text>
+            ) : null}
+            {executionProgress.errorMessage ? <Text color="red">Error: {executionProgress.errorMessage}</Text> : null}
+          </>
+        ) : null}
       </Box>
     );
   }
@@ -404,6 +455,7 @@ export const App = () => {
   }
 
   const conflicts = result?.actions.filter((item) => item.kind === "conflict") ?? [];
+  const deleteCandidates = result?.actions.filter((item) => item.kind === "delete-candidate") ?? [];
 
   return (
     <Box flexDirection="column">
@@ -413,6 +465,7 @@ export const App = () => {
       <Text>Mode: {result?.mode}</Text>
       <Text>Root entries: {result?.probe.rootEntryCount}</Text>
       <Text>Baseline entries: {result?.baselineEntryCount}</Text>
+      <Text>Pending tombstones: {result?.pendingTombstoneCount}</Text>
       <Text>
         Local: {result?.scan.localFiles} files / {result?.scan.localDirs} dirs
       </Text>
@@ -421,8 +474,9 @@ export const App = () => {
       </Text>
       <Newline />
       <Text color="cyan">
-        Plan: {result?.plan.upload} upload / {result?.plan.download} download / {result?.plan.conflict} conflict /{" "}
-        {result?.plan.skip} skip
+        Plan: {result?.plan.upload} upload / {result?.plan.download} download /{" "}
+        {(result?.plan.localSoftDelete ?? 0) + (result?.plan.remoteSoftDelete ?? 0)} soft-delete / {result?.plan.deleteCandidate} delete-candidate /{" "}
+        {result?.plan.conflict} conflict / {result?.plan.skip} skip
       </Text>
       {showConflictDetails && conflicts.length > 0 ? (
         <>
@@ -442,6 +496,7 @@ export const App = () => {
             </Text>
           ))}
           {conflicts.length > 10 ? <Text color="gray">... và còn {conflicts.length - 10} conflict khác</Text> : null}
+          {deleteCandidates.length > 0 ? <Text color="yellow">Delete candidates: {deleteCandidates.length}</Text> : null}
         </>
       ) : (
         <>
@@ -459,7 +514,7 @@ export const App = () => {
       )}
       <Newline />
       {infoMessage ? <Text color="green">{infoMessage}</Text> : null}
-      <Text color="gray">Nhấn c để bật/tắt conflict details. Nhấn e để thực thi. Nhấn s để lưu baseline. Nhấn b để về cấu hình sync. Nhấn q để thoát.</Text>
+      <Text color="gray">Nhấn c để bật/tắt conflict details. Nhấn e để thực thi. Nhấn b để về cấu hình sync. Nhấn q để thoát.</Text>
     </Box>
   );
 };

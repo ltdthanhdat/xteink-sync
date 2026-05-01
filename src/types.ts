@@ -30,6 +30,19 @@ export type BaselineEntry = {
   hash: string;
 };
 
+export type TombstoneSide = "local" | "remote";
+
+export type TombstoneStatus = "pending" | "resolved";
+
+export type TombstoneEntry = {
+  profileName: string;
+  relativePath: string;
+  deletedOn: TombstoneSide;
+  status: TombstoneStatus;
+  createdAt: string;
+  resolvedAt?: string | null;
+};
+
 export type ScanSummary = {
   localFiles: number;
   localDirs: number;
@@ -37,7 +50,14 @@ export type ScanSummary = {
   remoteDirs: number;
 };
 
-export type PlannedActionKind = "upload" | "download" | "conflict" | "skip";
+export type PlannedActionKind =
+  | "upload"
+  | "download"
+  | "conflict"
+  | "skip"
+  | "local-soft-delete"
+  | "remote-soft-delete"
+  | "delete-candidate";
 
 export type PlannedAction = {
   path: string;
@@ -45,6 +65,7 @@ export type PlannedAction = {
   reason: string;
   localSize?: number;
   remoteSize?: number;
+  tombstoneSide?: TombstoneSide;
 };
 
 export type PlanSummary = {
@@ -52,6 +73,9 @@ export type PlanSummary = {
   download: number;
   conflict: number;
   skip: number;
+  localSoftDelete: number;
+  remoteSoftDelete: number;
+  deleteCandidate: number;
   sample: PlannedAction[];
 };
 
@@ -63,6 +87,7 @@ export type SyncRunSummary = {
   scan: ScanSummary;
   plan: PlanSummary;
   baselineEntryCount: number;
+  pendingTombstoneCount: number;
   currentEntries: BaselineEntry[];
   actions: PlannedAction[];
 };
@@ -74,4 +99,16 @@ export type SyncRunRecord = {
   finishedAt: string;
   status: "success" | "failed";
   summary: SyncRunSummary;
+};
+
+export type ExecutionProgressPhase = "planning" | "running" | "completed" | "failed";
+
+export type ExecutionProgress = {
+  phase: ExecutionProgressPhase;
+  totalActions: number;
+  completedActions: number;
+  currentAction?: PlannedAction;
+  lastCompletedAction?: PlannedAction;
+  failedAction?: PlannedAction;
+  errorMessage?: string;
 };

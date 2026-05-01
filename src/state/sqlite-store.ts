@@ -1,10 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Database } from "bun:sqlite";
-import type { BaselineEntry, SyncProfile, SyncRunRecord, SyncRunSummary } from "../types.js";
+import type { BaselineEntry, SyncProfile, SyncRunRecord, SyncRunSummary, TombstoneEntry, TombstoneSide } from "../types.js";
 
 const defaultDbPath = path.join(process.cwd(), ".xteink-sync", "state.db");
 const normalizeMode = (mode: string): SyncProfile["mode"] => (mode === "dry-run" ? "bidirectional" : (mode as SyncProfile["mode"]));
+const normalizeRequiredText = (value: string | undefined, fieldName: string): string => {
+  const normalized = value?.trim();
+  if (!normalized) {
+    throw new Error(`Invalid ${fieldName}: expected non-empty text`);
+  }
+
+  return normalized;
+};
 
 export class SqliteStateStore {
   private readonly db: Database;
@@ -46,6 +54,16 @@ export class SqliteStateStore {
         updated_at TEXT NOT NULL,
         PRIMARY KEY (profile_name, relative_path)
       );
+
+      CREATE TABLE IF NOT EXISTS sync_tombstones (
+        profile_name TEXT NOT NULL,
+        relative_path TEXT NOT NULL,
+        deleted_on TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        PRIMARY KEY (profile_name, relative_path)
+      );
     `);
 
     try {
@@ -57,10 +75,15 @@ export class SqliteStateStore {
 
   upsertProfile(profile: SyncProfile): void {
     const now = new Date().toISOString();
+    const name = normalizeRequiredText(profile.name, "profile name");
+    const baseUrl = normalizeRequiredText(profile.baseUrl, "base URL");
+    const localRoot = normalizeRequiredText(profile.localRoot, "local root");
+    const remoteRoot = normalizeRequiredText(profile.remoteRoot, "remote root");
+
     this.db
       .query(`
         INSERT INTO sync_profiles (name, base_url, local_root, remote_root, mode, created_at, updated_at)
-        VALUES (@name, @baseUrl, @localRoot, @remoteRoot, @mode, @now, @now)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(name) DO UPDATE SET
           base_url = excluded.base_url,
           local_root = excluded.local_root,
@@ -68,14 +91,7 @@ export class SqliteStateStore {
           mode = excluded.mode,
           updated_at = excluded.updated_at
       `)
-      .run({
-        name: profile.name,
-        baseUrl: profile.baseUrl,
-        localRoot: profile.localRoot,
-        remoteRoot: profile.remoteRoot,
-        mode: normalizeMode(profile.mode),
-        now
-      });
+      .run(name, baseUrl, localRoot, remoteRoot, normalizeMode(profile.mode), now, now);
   }
 
   listProfiles(): SyncProfile[] {
@@ -161,6 +177,76 @@ export class SqliteStateStore {
     }));
   }
 
+  listPendingTombstones(profileName: string): TombstoneEntry[] {
+    const rows = this.db
+      .query(
+        `SELECT profile_name, relative_path, deleted_on, status, created_at, resolved_at
+         FROM sync_tombstones
+         WHERE profile_name = ? AND status = 'pending'
+         ORDER BY relative_path`
+      )
+      .all(profileName) as Array<{
+      profile_name: string;
+      relative_path: string;
+      deleted_on: TombstoneSide;
+      status: "pending" | "resolved";
+      created_at: string;
+      resolved_at: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      profileName: row.profile_name,
+      relativePath: row.relative_path,
+      deletedOn: row.deleted_on,
+      status: row.status,
+      createdAt: row.created_at,
+      resolvedAt: row.resolved_at
+    }));
+  }
+
+  upsertPendingTombstones(profileName: string, tombstones: Array<{ relativePath: string; deletedOn: TombstoneSide }>): void {
+    if (tombstones.length === 0) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const upsertQuery = this.db.query(`
+      INSERT INTO sync_tombstones (profile_name, relative_path, deleted_on, status, created_at, resolved_at)
+      VALUES (?, ?, ?, 'pending', ?, NULL)
+      ON CONFLICT(profile_name, relative_path) DO UPDATE SET
+        deleted_on = excluded.deleted_on,
+        status = 'pending',
+        created_at = excluded.created_at,
+        resolved_at = NULL
+    `);
+
+    this.db.transaction(() => {
+      for (const tombstone of tombstones) {
+        upsertQuery.run(profileName, tombstone.relativePath, tombstone.deletedOn, now);
+      }
+    })();
+  }
+
+  resolveTombstones(profileName: string, relativePaths: string[]): void {
+    if (relativePaths.length === 0) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const updateQuery = this.db.query(`
+      UPDATE sync_tombstones
+      SET status = 'resolved',
+          resolved_at = ?
+      WHERE profile_name = ? AND relative_path = ?
+    `);
+
+    this.db.transaction(() => {
+      for (const relativePath of relativePaths) {
+        updateQuery.run(now, profileName, relativePath);
+      }
+    })();
+  }
+
   replaceBaselineEntries(profileName: string, entries: BaselineEntry[]): void {
     const now = new Date().toISOString();
     const deleteQuery = this.db.query(`DELETE FROM sync_entries WHERE profile_name = ?`);
@@ -180,9 +266,11 @@ export class SqliteStateStore {
   deleteProfile(profileName: string): void {
     const deleteProfileQuery = this.db.query(`DELETE FROM sync_profiles WHERE name = ?`);
     const deleteBaselineQuery = this.db.query(`DELETE FROM sync_entries WHERE profile_name = ?`);
+    const deleteTombstonesQuery = this.db.query(`DELETE FROM sync_tombstones WHERE profile_name = ?`);
 
     this.db.transaction(() => {
       deleteBaselineQuery.run(profileName);
+      deleteTombstonesQuery.run(profileName);
       deleteProfileQuery.run(profileName);
     })();
   }

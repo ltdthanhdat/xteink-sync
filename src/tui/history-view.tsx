@@ -50,7 +50,9 @@ export const HistoryView = ({ runs, selectedIndex, onChange, onSelect, onBack }:
             {run.startedAt} {"->"} {run.finishedAt}
           </Text>
           <Text color="gray">
-            upload={run.summary.plan.upload}, download={run.summary.plan.download}, conflict={run.summary.plan.conflict}, skip={run.summary.plan.skip}
+            upload={run.summary.plan.upload}, download={run.summary.plan.download}, soft-delete=
+            {(run.summary.plan.localSoftDelete ?? 0) + (run.summary.plan.remoteSoftDelete ?? 0)}, delete-candidate=
+            {run.summary.plan.deleteCandidate ?? 0}, conflict={run.summary.plan.conflict}, skip={run.summary.plan.skip}
           </Text>
         </Box>
       ))}

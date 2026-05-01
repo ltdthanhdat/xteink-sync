@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "bun run src/index.tsx",
     "build": "tsc -p tsconfig.json",
-    "start": "bun dist/index.js"
+    "start": "bun dist/index.js",
+    "test": "bun test src"
   },
   "dependencies": {
     "ink": "^6.2.3",

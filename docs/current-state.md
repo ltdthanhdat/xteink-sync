@@ -1,0 +1,121 @@
+# Current State
+
+Tài liệu này mô tả trạng thái implementation hiện tại của codebase.
+
+## Stack
+
+- `Bun`
+- `TypeScript`
+- `Ink`
+- `React`
+- `SQLite` qua `bun:sqlite`
+
+## Runtime Flow Hiện Tại
+
+Ứng dụng đang chạy theo flow:
+
+1. nhập `base URL`
+2. nhập `local root`
+3. nhập `remote root`
+4. chọn mode:
+   - `bidirectional`
+   - `pull-only`
+   - `push-only`
+5. scan local + remote
+6. đọc `baseline` + `pending tombstones`
+7. preview plan
+8. execute nếu người dùng xác nhận
+
+## Những Gì Đã Có
+
+### Device Adapter
+
+- probe `/files`
+- scan remote tree qua `/api/files`
+- download file
+- upload file
+- `mkdir`
+- `rename`
+- `move`
+- `soft delete` remote bằng cách move vào `.xteink-trash` rồi rename thành file `deleted-*`
+
+### Sync Engine
+
+- first-run heuristics
+- 3-way diff:
+  - `local`
+  - `remote`
+  - `baseline`
+- `hash-on-demand` cho case same-size ambiguous ở remote
+- planner cho:
+  - `upload`
+  - `download`
+  - `conflict`
+  - `skip`
+  - `local-soft-delete`
+  - `remote-soft-delete`
+  - `delete-candidate`
+- conflict resolution tối thiểu:
+  - giữ local ở path gốc
+  - lưu remote thành `conflict-remote-*`
+  - upload cả hai bản lên remote
+
+### State Store
+
+Các bảng hiện có:
+
+- `sync_profiles`
+- `sync_entries`
+- `sync_tombstones`
+- `sync_runs`
+
+State hiện lưu:
+
+- baseline file-level:
+  - `relative_path`
+  - `size`
+  - `hash`
+- tombstone:
+  - `relative_path`
+  - `deleted_on`
+  - `status`
+  - `created_at`
+  - `resolved_at`
+
+### TUI
+
+- nhập config
+- preview plan
+- execute
+- history
+- run detail
+- progress action-level khi execute:
+  - tổng action
+  - action đang chạy
+  - action vừa xong
+  - lỗi hiện tại nếu fail
+
+## Feature Flags
+
+Hiện đang có:
+
+- `enableProfileManagement = false`
+
+Nghĩa là:
+
+- code profile picker vẫn còn
+- runtime mặc định đang dùng một profile cố định
+
+## Verify Đã Có
+
+- `bun test src`
+- `bun run build`
+
+## Điểm Chưa Ổn Hoặc Chưa Làm
+
+- chưa có rename detection thật sự
+- chưa có retry/resume khi mạng lỗi
+- chưa có byte-level progress
+- chưa có review riêng cho `delete-candidate`
+- chưa có test integration cho executor
+- chưa có cleanup policy cho `.xteink-trash`
